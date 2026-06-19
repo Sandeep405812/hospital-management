@@ -28,6 +28,10 @@ const CallRoom = () => {
   // Hosts are doctors or admins
   const isHost = user?.role === 'doctor' || user?.role === 'admin';
   
+  // Stream states to solve conditional rendering ref-binding issues
+  const [localStream, setLocalStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
+  
   const socketRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -57,6 +61,20 @@ const CallRoom = () => {
     fetchAppointment();
   }, [id, navigate]);
 
+  // Bind local stream to video element when it mounts/updates
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream, callStatus, isCamOff]);
+
+  // Bind remote stream to video element when it mounts/updates
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream, callStatus]);
+
   // Handle WebRTC Peer Connection & Socket Signaling
   useEffect(() => {
     if (loading || !appointment || !acceptedCall) return;
@@ -78,9 +96,7 @@ const CallRoom = () => {
           audio: true,
         });
         localStreamRef.current = stream;
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
+        setLocalStream(stream);
         setCallStatus('ready');
         
         // Connect WebRTC Peer Connection (Triggered AFTER media is ready)
@@ -118,6 +134,8 @@ const CallRoom = () => {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
     }
+    setLocalStream(null);
+    setRemoteStream(null);
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
@@ -149,8 +167,8 @@ const CallRoom = () => {
     // Handle incoming remote tracks
     pc.ontrack = (event) => {
       console.log('Received remote track', event);
-      if (remoteVideoRef.current && event.streams[0]) {
-        remoteVideoRef.current.srcObject = event.streams[0];
+      if (event.streams[0]) {
+        setRemoteStream(event.streams[0]);
         setCallStatus('talking');
       }
     };
@@ -233,9 +251,7 @@ const CallRoom = () => {
         handleEndCall();
       } else {
         setCallStatus('ready');
-        if (remoteVideoRef.current) {
-          remoteVideoRef.current.srcObject = null;
-        }
+        setRemoteStream(null);
       }
     });
   };
@@ -425,7 +441,7 @@ const CallRoom = () => {
                 <VideoOff size={48} style={{ marginBottom: '0.5rem' }} />
                 <p>Camera is Turned Off</p>
               </div>
-            ) : localStreamRef.current ? (
+            ) : localStream ? (
               <video ref={localVideoRef} autoPlay playsInline muted style={videoElementStyle} />
             ) : (
               /* Mock local video simulation */
@@ -450,7 +466,7 @@ const CallRoom = () => {
                 <Settings size={48} className="spin-animation" style={{ marginBottom: '0.5rem', animation: 'spin 2s linear infinite' }} />
                 <p>Waiting for peer to join...</p>
               </div>
-            ) : !localStreamRef.current ? (
+            ) : !remoteStream ? (
               /* Mock remote video simulation */
               <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)' }}>
                 <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: 'rgba(20, 184, 166, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-teal)', marginBottom: '1rem' }}>
