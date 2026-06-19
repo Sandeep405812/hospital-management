@@ -324,7 +324,7 @@ const CallRoom = () => {
     navigate('/appointments');
   };
 
-  if (loading) {
+  if (loading || !appointment) {
     return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading Telemedicine Room...</div>;
   }
 
@@ -418,19 +418,7 @@ const CallRoom = () => {
     zIndex: 10,
   };
 
-  const controlButtonStyle = (active, color = 'var(--bg-tertiary)') => ({
-    width: '56px',
-    height: '56px',
-    borderRadius: '50%',
-    backgroundColor: active ? 'var(--accent-blue)' : color,
-    border: 'none',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    cursor: 'pointer',
-    color: '#fff',
-    transition: 'var(--transition-smooth)',
-  });
+  // Control buttons styled via CSS classes (.control-btn)
 
   return (
     <div style={pageContainerStyle}>
@@ -565,7 +553,7 @@ const CallRoom = () => {
       <div style={controlsContainerStyle} className="controls-container-toolbar">
         <button
           onClick={toggleMute}
-          style={controlButtonStyle(!isMuted)}
+          className={`control-btn ${!isMuted ? 'active-blue' : ''}`}
           title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
         >
           {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
@@ -573,7 +561,7 @@ const CallRoom = () => {
 
         <button
           onClick={toggleCam}
-          style={controlButtonStyle(!isCamOff)}
+          className={`control-btn ${!isCamOff ? 'active-blue' : ''}`}
           title={isCamOff ? 'Turn on camera' : 'Turn off camera'}
         >
           {isCamOff ? <VideoOff size={24} /> : <Video size={24} />}
@@ -582,7 +570,7 @@ const CallRoom = () => {
         {isHost && (
           <button
             onClick={handleEndCall}
-            style={controlButtonStyle(false, 'var(--danger)')}
+            className="control-btn danger"
             title="End Telemedicine Call"
           >
             <PhoneOff size={24} />

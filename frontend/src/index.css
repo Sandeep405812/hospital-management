@@ -112,7 +112,7 @@ button, input, select, textarea {
   display: none !important;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .main-content {
     margin-left: 0 !important;
     padding: 1rem !important;
@@ -308,42 +308,56 @@ button, input, select, textarea {
   transition: var(--transition-smooth);
 }
 
+.btn:active {
+  transform: translateY(1px) scale(0.97) !important;
+  box-shadow: var(--shadow-sm) !important;
+  transition: all 0.05s ease;
+}
+
 .btn-primary {
   background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-blue-hover) 100%);
   color: white;
-  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.25);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
 }
 
 .btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 14px rgba(59, 130, 246, 0.35);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.38), 0 0 15px rgba(59, 130, 246, 0.25);
 }
 
 .btn-secondary {
-  background-color: var(--bg-tertiary);
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
+  backdrop-filter: blur(8px);
 }
 
 .btn-secondary:hover {
-  background-color: var(--text-muted);
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px) scale(1.02);
 }
 
 .btn-teal {
   background: linear-gradient(135deg, var(--accent-teal) 0%, var(--accent-teal-hover) 100%);
   color: white;
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.25);
 }
 
 .btn-teal:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 16px rgba(20, 184, 166, 0.38), 0 0 15px rgba(20, 184, 166, 0.25);
 }
 
 .btn-danger {
-  background-color: var(--danger);
+  background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
   color: white;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
 }
 
 .btn-danger:hover {
-  background-color: #dc2626;
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.38), 0 0 15px rgba(239, 68, 68, 0.25);
 }
 
 .btn-full {
@@ -354,6 +368,54 @@ button, input, select, textarea {
   padding: 0.5rem 1rem;
   font-size: 0.85rem;
   border-radius: var(--border-radius-sm);
+}
+
+/* Glassmorphic Call Room Keys / Control Buttons */
+.control-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  transition: var(--transition-smooth);
+  background: rgba(30, 41, 59, 0.6);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.control-btn:hover {
+  transform: translateY(-3px) scale(1.05);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35), 0 0 15px rgba(255, 255, 255, 0.15);
+}
+
+.control-btn:active {
+  transform: translateY(1px) scale(0.95) !important;
+  transition: all 0.05s ease;
+}
+
+.control-btn.active-blue {
+  background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-blue-hover) 100%);
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.35), 0 0 15px rgba(59, 130, 246, 0.2);
+}
+
+.control-btn.active-blue:hover {
+  box-shadow: 0 6px 22px rgba(59, 130, 246, 0.45), 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.control-btn.danger {
+  background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+  border-color: rgba(239, 68, 68, 0.3);
+  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.35);
+}
+
+.control-btn.danger:hover {
+  box-shadow: 0 6px 22px rgba(239, 68, 68, 0.45), 0 0 20px rgba(239, 68, 68, 0.3);
 }
 
 /* Glass Cards & Dashboard Elements */
@@ -455,6 +517,7 @@ button, input, select, textarea {
   border-collapse: collapse;
   text-align: left;
   font-size: 0.95rem;
+  white-space: nowrap;
 }
 
 .custom-table th {

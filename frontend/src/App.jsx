@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { io } from 'socket.io-client';
 import { BACKEND_URL } from './utils/api';
@@ -65,6 +65,7 @@ const GuestRoute = () => {
 const DashboardLayout = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const [incomingCall, setIncomingCall] = React.useState(null);
   const globalSocketRef = React.useRef(null);
@@ -112,6 +113,13 @@ const DashboardLayout = () => {
       }, 50);
     }
   }, [incomingCall]);
+
+  React.useEffect(() => {
+    gsap.fromTo('.page-transition-wrapper',
+      { opacity: 0, y: 15 },
+      { opacity: 1, y: 0, duration: 0.45, ease: 'power2.out' }
+    );
+  }, [location.pathname]);
 
   const handleAcceptCall = () => {
     if (incomingCall) {
@@ -251,7 +259,7 @@ const DashboardLayout = () => {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="main-content">
         <Navbar onMenuClick={() => setSidebarOpen(true)} />
-        <div style={{ marginTop: '1.5rem' }}>
+        <div className="page-transition-wrapper" style={{ marginTop: '1.5rem' }}>
           <Outlet />
         </div>
       </div>

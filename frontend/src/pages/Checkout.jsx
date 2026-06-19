@@ -93,7 +93,7 @@ const Checkout = () => {
     return `${m}:${s}`;
   };
 
-  if (loading && !bill) {
+  if (loading || !bill) {
     return <div style={{ padding: '2rem', textAlign: 'center' }}>Opening secure checkout...</div>;
   }
 
