@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
 import StatCard from '../components/StatCard';
 import Table from '../components/Table';
+import gsap from 'gsap';
 import { Link } from 'react-router-dom';
 import {
   Users,
@@ -108,6 +109,26 @@ const Dashboard = () => {
       fetchDashboardData();
     }
   }, [user]);
+
+  // Staggered entry animations for Dashboard elements when loaded
+  useEffect(() => {
+    if (!loading) {
+      gsap.fromTo('.page-title, .page-subtitle', 
+        { opacity: 0, y: -20 },
+        { opacity: 1, y: 0, duration: 0.6, ease: 'power2.out', stagger: 0.1 }
+      );
+      
+      gsap.fromTo('.stat-card', 
+        { opacity: 0, y: 30, scale: 0.96 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: 'back.out(1.4)', stagger: 0.08 }
+      );
+      
+      gsap.fromTo('.dashboard-section', 
+        { opacity: 0, y: 45 },
+        { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out', stagger: 0.15 }
+      );
+    }
+  }, [loading]);
 
   // Chart Renderers
   const renderRevenueChart = () => {

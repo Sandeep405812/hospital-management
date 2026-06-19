@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import gsap from 'gsap';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -13,6 +14,17 @@ const Register = () => {
     bloodType: 'A+',
     emergencyContact: '',
   });
+
+  useEffect(() => {
+    gsap.fromTo('.auth-card',
+      { y: 40, opacity: 0, scale: 0.96 },
+      { y: 0, opacity: 1, scale: 1, duration: 0.8, ease: 'power3.out' }
+    );
+    gsap.fromTo('.form-group, .btn, h3',
+      { y: 15, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.5, ease: 'power2.out', stagger: 0.05, delay: 0.15 }
+    );
+  }, []);
   const [formError, setFormError] = useState('');
 
   const { register, loading, error } = useAuth();

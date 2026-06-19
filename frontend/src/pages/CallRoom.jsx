@@ -4,6 +4,7 @@ import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { api, BACKEND_URL } from '../utils/api';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Settings, Send, PhoneCall } from 'lucide-react';
+import gsap from 'gsap';
 
 const CallRoom = () => {
   const { id } = useParams(); // Appointment ID
@@ -60,6 +61,24 @@ const CallRoom = () => {
     };
     fetchAppointment();
   }, [id, navigate]);
+
+  // Entrance animations for CallRoom elements when loaded
+  useEffect(() => {
+    if (!loading) {
+      gsap.fromTo('.video-grid > div',
+        { scale: 0.9, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.6, ease: 'power2.out', stagger: 0.15 }
+      );
+      gsap.fromTo('.chat-panel',
+        { x: 30, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.7, ease: 'power3.out', delay: 0.2 }
+      );
+      gsap.fromTo('.controls-container-toolbar button',
+        { scale: 0, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.5, ease: 'back.out(1.8)', stagger: 0.1, delay: 0.4 }
+      );
+    }
+  }, [loading]);
 
   // Bind local stream to video element when it mounts/updates
   useEffect(() => {
@@ -543,7 +562,7 @@ const CallRoom = () => {
       </div>
 
       {/* Conference Buttons Toolbar */}
-      <div style={controlsContainerStyle}>
+      <div style={controlsContainerStyle} className="controls-container-toolbar">
         <button
           onClick={toggleMute}
           style={controlButtonStyle(!isMuted)}

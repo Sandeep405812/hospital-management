@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { io } from 'socket.io-client';
 import { BACKEND_URL } from './utils/api';
 import { Phone, PhoneOff, Video } from 'lucide-react';
+import gsap from 'gsap';
 
 // Components
 import Sidebar from './components/Sidebar';
@@ -101,6 +102,17 @@ const DashboardLayout = () => {
     };
   }, [user]);
 
+  React.useEffect(() => {
+    if (incomingCall) {
+      setTimeout(() => {
+        gsap.fromTo('.incoming-call-modal',
+          { scale: 0.8, opacity: 0, rotation: -2 },
+          { scale: 1, opacity: 1, rotation: 0, duration: 0.5, ease: 'back.out(1.75)' }
+        );
+      }, 50);
+    }
+  }, [incomingCall]);
+
   const handleAcceptCall = () => {
     if (incomingCall) {
       navigate(`/appointments/${incomingCall.roomId}/call`);
@@ -133,7 +145,7 @@ const DashboardLayout = () => {
           zIndex: 9999,
           animation: 'fadeIn 0.3s ease-out',
         }}>
-          <div style={{
+          <div className="incoming-call-modal" style={{
             background: 'var(--bg-secondary)',
             border: '1px solid var(--glass-border)',
             borderRadius: 'var(--border-radius-lg)',

@@ -1,11 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import gsap from 'gsap';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [formError, setFormError] = useState('');
+
+  useEffect(() => {
+    gsap.fromTo('.auth-card',
+      { y: 40, opacity: 0, scale: 0.96 },
+      { y: 0, opacity: 1, scale: 1, duration: 0.8, ease: 'power3.out' }
+    );
+    gsap.fromTo('.form-group, .btn',
+      { y: 15, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.5, ease: 'power2.out', stagger: 0.08, delay: 0.15 }
+    );
+  }, []);
 
   const { login, loading, error } = useAuth();
   const navigate = useNavigate();
