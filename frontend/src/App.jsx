@@ -106,9 +106,25 @@ const DashboardLayout = () => {
   React.useEffect(() => {
     if (incomingCall) {
       setTimeout(() => {
+        gsap.set('.incoming-call-overlay', { perspective: 1000 });
         gsap.fromTo('.incoming-call-modal',
-          { scale: 0.8, opacity: 0, rotation: -2 },
-          { scale: 1, opacity: 1, rotation: 0, duration: 0.5, ease: 'back.out(1.75)' }
+          { 
+            scale: 0.5, 
+            opacity: 0, 
+            rotationX: -65, 
+            rotationY: 10,
+            y: 40,
+            transformOrigin: 'center bottom'
+          },
+          { 
+            scale: 1, 
+            opacity: 1, 
+            rotationX: 0, 
+            rotationY: 0, 
+            y: 0,
+            duration: 0.75, 
+            ease: 'back.out(2)' 
+          }
         );
       }, 50);
     }
@@ -139,7 +155,7 @@ const DashboardLayout = () => {
     <div className={`dashboard-layout ${sidebarOpen ? 'sidebar-active' : ''}`}>
       {/* Floating Incoming Call Modal Popup */}
       {incomingCall && (
-        <div style={{
+        <div className="incoming-call-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,
