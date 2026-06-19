@@ -20,6 +20,8 @@ import Profile from './pages/Profile';
 import CallRoom from './pages/CallRoom';
 import Checkout from './pages/Checkout';
 import Reports from './pages/Reports';
+import Metrics from './pages/Metrics';
+import SymptomChecker from './pages/SymptomChecker';
 
 // Protected Route Guard
 const ProtectedRoute = ({ allowedRoles }) => {
@@ -71,6 +73,37 @@ const DashboardLayout = () => {
 };
 
 function App() {
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    const interval = setInterval(() => {
+      const now = new Date();
+      const currentHours = String(now.getHours()).padStart(2, '0');
+      const currentMinutes = String(now.getMinutes()).padStart(2, '0');
+      const currentTime = `${currentHours}:${currentMinutes}`;
+
+      const reminders = JSON.parse(localStorage.getItem('medicine_reminders') || '[]');
+      
+      reminders.forEach((rem) => {
+        if (rem.time === currentTime) {
+          const lastTriggerKey = `last_triggered_${rem.id}_${currentTime}`;
+          if (!localStorage.getItem(lastTriggerKey)) {
+            new Notification('💊 AS HOSPITAL Medicine Reminder', {
+              body: `Time to take your medicine: ${rem.name} (${rem.dosage})`,
+            });
+            localStorage.setItem(lastTriggerKey, 'true');
+          }
+        }
+      });
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <AuthProvider>
       <Router>
@@ -101,6 +134,8 @@ function App() {
               {/* Patient only */}
               <Route element={<ProtectedRoute allowedRoles={['patient']} />}>
                 <Route path="/reports" element={<Reports />} />
+                <Route path="/metrics" element={<Metrics />} />
+                <Route path="/symptom-checker" element={<SymptomChecker />} />
               </Route>
 
               {/* Admin & Doctor only */}

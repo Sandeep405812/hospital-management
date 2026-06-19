@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Table from '../components/Table';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../utils/api';
+import { api, BACKEND_URL } from '../utils/api';
 import { Upload, FileText, Trash2, Eye, Calendar } from 'lucide-react';
 
 const Reports = () => {
@@ -54,7 +54,7 @@ const Reports = () => {
       formData.append('file', file);
 
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:5000/api/reports/upload', {
+      const response = await fetch(`${BACKEND_URL}/api/reports/upload`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -202,7 +202,7 @@ const Reports = () => {
                   <td>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <a
-                        href={`http://localhost:5000${rep.filePath}`}
+                        href={`${BACKEND_URL}${rep.filePath}`}
                         target="_blank"
                         rel="noreferrer"
                         className="btn btn-secondary btn-sm"

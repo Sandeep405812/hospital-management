@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import { BACKEND_URL } from '../utils/api';
 import { User } from 'lucide-react';
 
 const Navbar = ({ title }) => {
@@ -61,7 +62,7 @@ const Navbar = ({ title }) => {
 
   return (
     <div style={navbarStyle}>
-      <div style={titleStyle}>{title || 'CareHMS'}</div>
+      <div style={titleStyle}>{title || 'AS HOSPITAL'}</div>
       <div style={userSectionStyle}>
         <div style={userInfoStyle}>
           <div style={userNameStyle}>{user.name}</div>
@@ -70,7 +71,7 @@ const Navbar = ({ title }) => {
         <div style={avatarStyle}>
           {user.avatar ? (
             <img
-              src={user.avatar}
+              src={user.avatar.startsWith('http') ? user.avatar : `${BACKEND_URL}${user.avatar}`}
               alt="avatar"
               style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
             />

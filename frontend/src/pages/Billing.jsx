@@ -65,6 +65,23 @@ const Billing = () => {
     }
   };
 
+  const handleEditFee = async (bill) => {
+    const newFee = prompt(`Enter new fee amount for ${bill.patient?.user?.name}'s invoice (subtotal):`, bill.amount);
+    if (newFee === null) return;
+    if (isNaN(newFee) || Number(newFee) <= 0) {
+      alert('Please enter a valid positive number');
+      return;
+    }
+
+    try {
+      await api.put(`/billing/${bill._id}/amount`, { amount: Number(newFee) });
+      fetchBills();
+      alert('Invoice fee updated successfully!');
+    } catch (err) {
+      alert(err.message || 'Failed to update fee');
+    }
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -116,10 +133,12 @@ const Billing = () => {
                 <td>₹{bill.tax}</td>
                 <td style={{ fontWeight: 700 }}>₹{bill.total}</td>
                 <td>
-                  <span className={`badge badge-${bill.status}`}>{bill.status}</span>
+                  <span className={`badge badge-${bill.status}`}>
+                    {bill.status === 'paid' ? 'Fee Success' : 'Unpaid'}
+                  </span>
                 </td>
                 <td>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     <button
                       className="btn btn-secondary btn-sm"
                       style={{ padding: '0.35rem' }}
@@ -132,6 +151,15 @@ const Billing = () => {
                         <CreditCard size={14} />
                         <span>Pay</span>
                       </Link>
+                    )}
+                    {user.role === 'admin' && bill.status === 'unpaid' && (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                        onClick={() => handleEditFee(bill)}
+                      >
+                        Edit Fee
+                      </button>
                     )}
                   </div>
                 </td>
@@ -225,7 +253,7 @@ const Billing = () => {
               <div style={{ padding: '0.75rem', backgroundColor: 'rgba(255, 255, 255, 0.02)', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--glass-border)' }}>
                 <p style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>Billing Summary:</p>
                 <p><strong>Doctor:</strong> {selectedBill.appointment?.doctor?.user?.name}</p>
-                <p><strong>Payment Status:</strong> <span style={{ textTransform: 'capitalize', fontWeight: 600, color: selectedBill.status === 'paid' ? 'var(--success)' : 'var(--danger)' }}>{selectedBill.status}</span></p>
+                <p><strong>Payment Status:</strong> <span style={{ textTransform: 'capitalize', fontWeight: 600, color: selectedBill.status === 'paid' ? 'var(--success)' : 'var(--danger)' }}>{selectedBill.status === 'paid' ? 'Fee Success' : 'Unpaid'}</span></p>
                 {selectedBill.status === 'paid' && (
                   <>
                     <p><strong>Method:</strong> {selectedBill.paymentMethod}</p>

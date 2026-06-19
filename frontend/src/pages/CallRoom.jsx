@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Settings } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Settings, Send } from 'lucide-react';
 
 const CallRoom = () => {
   const { id } = useParams(); // Appointment ID
@@ -18,12 +18,17 @@ const CallRoom = () => {
   const [isCamOff, setIsCamOff] = useState(false);
   const [callStatus, setCallStatus] = useState('connecting'); // connecting, ready, talking, ended
   
+  // Chat States
+  const [messages, setMessages] = useState([]);
+  const [typedText, setTypedText] = useState('');
+  
   const socketRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
   
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const chatBottomRef = useRef(null);
 
   // Load appointment details
   useEffect(() => {
@@ -66,33 +71,53 @@ const CallRoom = () => {
         }
         setCallStatus('ready');
         
-        // Connect WebRTC Peer Connection
+        // Connect WebRTC Peer Connection (Triggered AFTER media is ready)
         initializePeerConnection(stream);
       } catch (err) {
         console.warn('Camera/Mic permission denied or unavailable, running mock feed simulation', err);
         setCallStatus('talking'); // Mock simulation mode
+        
+        // Even in mock mode, join socket room to enable text chat!
+        socketRef.current.emit('join-room', { roomId: id, userId: user._id, userName: user.name });
       }
     };
 
     startMedia();
 
+    // Listen for incoming chat messages
+    socketRef.current.on('receive-message', ({ message, senderName }) => {
+      setMessages((prev) => [...prev, { text: message, sender: senderName }]);
+    });
+
     return () => {
-      // Cleanup on unmount
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => track.stop());
-      }
-      if (peerConnectionRef.current) {
-        peerConnectionRef.current.close();
-      }
-      if (socketRef.current) {
-        socketRef.current.emit('leave-room', { roomId: id, userName: user.name });
-        socketRef.current.disconnect();
-      }
+      cleanupMedia();
     };
   }, [id, appointment, loading, user.name]);
 
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (chatBottomRef.current) {
+      chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  const cleanupMedia = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+      localStreamRef.current = null;
+    }
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+    if (socketRef.current) {
+      socketRef.current.emit('leave-room', { roomId: id, userName: user.name });
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    }
+  };
+
   const initializePeerConnection = (stream) => {
-    // Standard STUN servers configuration
     const config = {
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
     };
@@ -116,12 +141,12 @@ const CallRoom = () => {
 
     // Handle local ICE candidates and send to peer
     pc.onicecandidate = (event) => {
-      if (event.candidate) {
+      if (event.candidate && socketRef.current) {
         socketRef.current.emit('ice-candidate', { roomId: id, candidate: event.candidate });
       }
     };
 
-    // Join room in socket signaling server
+    // Join room in socket signaling server ONLY AFTER media tracks are fully ready
     socketRef.current.emit('join-room', { roomId: id, userId: user._id, userName: user.name });
 
     // Handle peer joins
@@ -179,6 +204,22 @@ const CallRoom = () => {
     });
   };
 
+  // Send Chat Message
+  const handleSendMessage = (e) => {
+    e.preventDefault();
+    if (!typedText.trim()) return;
+
+    if (socketRef.current) {
+      socketRef.current.emit('send-message', {
+        roomId: id,
+        message: typedText,
+        senderName: user.name,
+      });
+      setMessages((prev) => [...prev, { text: typedText, sender: 'You' }]);
+      setTypedText('');
+    }
+  };
+
   // Toggle Mute Audio
   const toggleMute = () => {
     if (localStreamRef.current) {
@@ -188,7 +229,7 @@ const CallRoom = () => {
         setIsMuted(!audioTrack.enabled);
       }
     } else {
-      setIsMuted(!isMuted); // Mock fallback toggle
+      setIsMuted(!isMuted);
     }
   };
 
@@ -201,16 +242,15 @@ const CallRoom = () => {
         setIsCamOff(!videoTrack.enabled);
       }
     } else {
-      setIsCamOff(!isCamOff); // Mock fallback toggle
+      setIsCamOff(!isCamOff);
     }
   };
 
   // End Call Session
   const handleEndCall = () => {
+    cleanupMedia();
     setCallStatus('ended');
-    setTimeout(() => {
-      navigate('/appointments');
-    }, 1000);
+    navigate('/appointments');
   };
 
   if (loading) {
@@ -240,13 +280,29 @@ const CallRoom = () => {
     zIndex: 10,
   };
 
-  const videoGridStyle = {
+  const conferenceLayout = {
     flex: 1,
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+    display: 'flex',
     gap: '1.5rem',
     minHeight: '400px',
     zIndex: 5,
+  };
+
+  const videoGridStyle = {
+    flex: 2,
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '1.5rem',
+  };
+
+  const chatPanelStyle = {
+    flex: 0.8,
+    display: 'flex',
+    flexDirection: 'column',
+    backgroundColor: 'var(--bg-secondary)',
+    border: '1px solid var(--glass-border)',
+    borderRadius: 'var(--border-radius)',
+    overflow: 'hidden',
   };
 
   const videoWrapperStyle = {
@@ -321,56 +377,116 @@ const CallRoom = () => {
         </div>
       </div>
 
-      <div style={videoGridStyle} className="video-grid">
-        {/* Local Stream view */}
-        <div style={videoWrapperStyle}>
-          {isCamOff ? (
-            <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
-              <VideoOff size={48} style={{ marginBottom: '0.5rem' }} />
-              <p>Camera is Turned Off</p>
-            </div>
-          ) : localStreamRef.current ? (
-            <video ref={localVideoRef} autoPlay playsInline muted style={videoElementStyle} />
-          ) : (
-            /* Mock local video simulation */
-            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(20, 184, 166, 0.1) 100%)' }}>
-              <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: 'rgba(59, 130, 246, 0.2)', display: 'flex', alignItems: 'center', justifycontent: 'center', color: 'var(--accent-blue)', marginBottom: '1rem' }}>
-                <User size={36} />
+      {/* Main Conference Content Layout (Videos + Chat Panel) */}
+      <div style={conferenceLayout} className="conference-layout">
+        
+        {/* Videos Grid */}
+        <div style={videoGridStyle} className="video-grid">
+          {/* Local Stream view */}
+          <div style={videoWrapperStyle}>
+            {isCamOff ? (
+              <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
+                <VideoOff size={48} style={{ marginBottom: '0.5rem' }} />
+                <p>Camera is Turned Off</p>
               </div>
-              <p style={{ fontWeight: 600 }}>{user.name} (You)</p>
-              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Mock Local Video Stream</span>
+            ) : localStreamRef.current ? (
+              <video ref={localVideoRef} autoPlay playsInline muted style={videoElementStyle} />
+            ) : (
+              /* Mock local video simulation */
+              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(20, 184, 166, 0.1) 100%)' }}>
+                <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: 'rgba(59, 130, 246, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-blue)', marginBottom: '1rem' }}>
+                  <User size={36} />
+                </div>
+                <p style={{ fontWeight: 600 }}>{user.name} (You)</p>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Mock Local Video Stream</span>
+              </div>
+            )}
+            <div style={labelOverlayStyle}>
+              <span>{user.name} (You)</span>
+              {isMuted && <MicOff size={14} style={{ color: 'var(--danger)' }} />}
             </div>
-          )}
-          <div style={labelOverlayStyle}>
-            <span>{user.name} (You)</span>
-            {isMuted && <MicOff size={14} style={{ color: 'var(--danger)' }} />}
+          </div>
+
+          {/* Remote Stream view */}
+          <div style={videoWrapperStyle}>
+            {callStatus === 'ready' ? (
+              <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
+                <Settings size={48} className="spin-animation" style={{ marginBottom: '0.5rem', animation: 'spin 2s linear infinite' }} />
+                <p>Waiting for peer to join...</p>
+              </div>
+            ) : !localStreamRef.current ? (
+              /* Mock remote video simulation */
+              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)' }}>
+                <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: 'rgba(20, 184, 166, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-teal)', marginBottom: '1rem' }}>
+                  <User size={36} />
+                </div>
+                <p style={{ fontWeight: 600 }}>
+                  {user.role === 'patient' ? appointment.doctor?.user?.name : appointment.patient?.user?.name}
+                </p>
+                <span style={{ fontSize: '0.8rem', color: 'var(--accent-teal)' }}>Connected • Mock Video Stream</span>
+              </div>
+            ) : (
+              <video ref={remoteVideoRef} autoPlay playsInline style={videoElementStyle} />
+            )}
+            <div style={labelOverlayStyle}>
+              <span>{user.role === 'patient' ? appointment.doctor?.user?.name : appointment.patient?.user?.name}</span>
+            </div>
           </div>
         </div>
 
-        {/* Remote Stream view */}
-        <div style={videoWrapperStyle}>
-          {callStatus === 'ready' ? (
-            <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
-              <Settings size={48} className="spin-animation" style={{ marginBottom: '0.5rem', animation: 'spin 2s linear infinite' }} />
-              <p>Waiting for peer to join the consultation...</p>
-            </div>
-          ) : !localStreamRef.current ? (
-            /* Mock remote video simulation */
-            <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)' }}>
-              <div style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: 'rgba(20, 184, 166, 0.2)', display: 'flex', alignItems: 'center', justifycontent: 'center', color: 'var(--accent-teal)', marginBottom: '1rem' }}>
-                <User size={36} />
-              </div>
-              <p style={{ fontWeight: 600 }}>
-                {user.role === 'patient' ? appointment.doctor?.user?.name : appointment.patient?.user?.name}
-              </p>
-              <span style={{ fontSize: '0.8rem', color: 'var(--accent-teal)' }}>Connected • Mock Video Stream</span>
-            </div>
-          ) : (
-            <video ref={remoteVideoRef} autoPlay playsInline style={videoElementStyle} />
-          )}
-          <div style={labelOverlayStyle}>
-            <span>{user.role === 'patient' ? appointment.doctor?.user?.name : appointment.patient?.user?.name}</span>
+        {/* Chat Panel */}
+        <div style={chatPanelStyle} className="chat-panel">
+          <div style={{ padding: '1rem', borderBottom: '1px solid var(--glass-border)', fontWeight: 700, fontSize: '0.95rem' }}>
+            💬 Personal Consultation Chat
           </div>
+
+          {/* Chat Messages */}
+          <div style={{ flex: 1, padding: '1rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {messages.length === 0 ? (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '2rem' }}>
+                No messages yet. Send a message to start chat.
+              </div>
+            ) : (
+              messages.map((msg, i) => {
+                const isSelf = msg.sender === 'You';
+                return (
+                  <div key={i} style={{ alignSelf: isSelf ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
+                    {!isSelf && (
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', display: 'block', marginBottom: '0.15rem' }}>
+                        {msg.sender}
+                      </span>
+                    )}
+                    <div style={{
+                      padding: '0.6rem 0.9rem',
+                      borderRadius: 'var(--border-radius)',
+                      fontSize: '0.9rem',
+                      backgroundColor: isSelf ? 'var(--accent-blue)' : 'var(--bg-tertiary)',
+                      color: '#fff',
+                      boxShadow: 'var(--shadow-sm)',
+                    }}>
+                      {msg.text}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            <div ref={chatBottomRef} />
+          </div>
+
+          {/* Chat Input */}
+          <form onSubmit={handleSendMessage} style={{ display: 'flex', padding: '0.75rem', borderTop: '1px solid var(--glass-border)', gap: '0.5rem' }}>
+            <input
+              type="text"
+              className="form-input"
+              style={{ margin: 0, padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
+              placeholder="Type your message..."
+              value={typedText}
+              onChange={(e) => setTypedText(e.target.value)}
+            />
+            <button type="submit" className="btn btn-primary" style={{ padding: '0.5rem 1rem' }}>
+              <Send size={16} />
+            </button>
+          </form>
         </div>
       </div>
 
@@ -408,6 +524,14 @@ const CallRoom = () => {
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        @media (max-width: 992px) {
+          .conference-layout {
+            flex-direction: column !important;
+          }
+          .chat-panel {
+            min-height: 250px !important;
+          }
         }
       `}</style>
     </div>

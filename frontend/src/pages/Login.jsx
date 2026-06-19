@@ -33,7 +33,7 @@ const Login = () => {
       <div className="auth-card">
         <div className="auth-header">
           <div className="auth-logo">
-            <span>🏥 CareHMS</span>
+            <span>🏥 AS HOSPITAL</span>
           </div>
           <p className="auth-subtitle">Login to access your medical dashboard</p>
         </div>

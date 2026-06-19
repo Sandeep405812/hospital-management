@@ -10,6 +10,13 @@ const Checkout = () => {
   const [bill, setBill] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('card'); // card, upi, netbanking
+  const [settings, setSettings] = useState({
+    upiId: 'admin.carehms@icici',
+    bankName: 'ICICI Bank Ltd.',
+    accountName: 'AS HOSPITAL General Account',
+    accountNumber: '91820038190',
+    ifscCode: 'ICIC0000192'
+  });
   
   // Card states
   const [cardForm, setCardForm] = useState({ number: '', name: '', expiry: '', cvv: '' });
@@ -17,8 +24,9 @@ const Checkout = () => {
   const [timer, setTimer] = useState(300); // 5 minutes
 
   useEffect(() => {
-    const fetchBill = async () => {
+    const initData = async () => {
       try {
+        setLoading(true);
         const data = await api.get('/billing');
         const match = data.find((b) => b._id === id);
         if (!match) {
@@ -27,13 +35,21 @@ const Checkout = () => {
           return;
         }
         setBill(match);
+
+        // Fetch settings dynamically
+        try {
+          const settingsData = await api.get('/settings');
+          setSettings(settingsData);
+        } catch (settingsErr) {
+          console.error('Failed to load payment settings', settingsErr);
+        }
       } catch (err) {
         console.error('Failed to load invoice', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchBill();
+    initData();
   }, [id, navigate]);
 
   // UPI Timer effect
@@ -264,29 +280,22 @@ const Checkout = () => {
                   marginBottom: '1rem',
                   boxShadow: 'var(--shadow-sm)',
                 }}>
-                  {/* Mock QR Canvas block */}
-                  <div style={{
-                    width: '180px',
-                    height: '180px',
-                    background: 'radial-gradient(circle, #000000 10%, transparent 11%), radial-gradient(circle, #000000 10%, transparent 11%)',
-                    backgroundSize: '15px 15px',
-                    backgroundColor: '#fff',
-                    border: '10px solid #fff',
-                    outline: '2px dashed #000',
-                  }}>
-                    {/* QR Corners mock */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', height: '100%' }}>
-                      <div style={{ width: '40px', height: '40px', border: '5px solid #000', backgroundColor: '#fff' }}></div>
-                      <div style={{ width: '40px', height: '40px', border: '5px solid #000', backgroundColor: '#fff' }}></div>
-                    </div>
-                  </div>
+                  {bill && (
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                        `upi://pay?pa=${settings.upiId}&pn=${encodeURIComponent(settings.accountName)}&am=${bill.total}&tn=${bill._id}&cu=INR`
+                      )}`}
+                      alt="UPI Payment QR Code"
+                      style={{ width: '180px', height: '180px', display: 'block' }}
+                    />
+                  )}
                 </div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--warning)', marginBottom: '1.5rem' }}>
                   Code expires in: <span style={{ fontFamily: 'monospace' }}>{formatTime(timer)}</span>
                 </div>
                 <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <p><strong>Beneficiary Account:</strong> CareHMS Admin General Ledger</p>
-                  <p>Ref Merchant UPI ID: <code style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>admin.carehms@icici</code></p>
+                  <p><strong>Beneficiary Account:</strong> {settings.accountName}</p>
+                  <p>Ref Merchant UPI ID: <code style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>{settings.upiId}</code></p>
                 </div>
               </div>
             )}
@@ -308,10 +317,10 @@ const Checkout = () => {
                   lineHeight: '1.6'
                 }}>
                   <p style={{ color: 'var(--accent-blue)', fontWeight: 700, marginBottom: '0.25rem' }}>Admin Beneficiary Account:</p>
-                  <p>Bank: <strong>ICICI Bank Ltd.</strong></p>
-                  <p>A/c Name: <strong>CareHMS Hospital General Account</strong></p>
-                  <p>A/c Number: <strong>91820038190</strong></p>
-                  <p>IFSC Code: <strong>ICIC0000192</strong></p>
+                  <p>Bank: <strong>{settings.bankName}</strong></p>
+                  <p>A/c Name: <strong>{settings.accountName}</strong></p>
+                  <p>A/c Number: <strong>{settings.accountNumber}</strong></p>
+                  <p>IFSC Code: <strong>{settings.ifscCode}</strong></p>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Choose Bank</label>

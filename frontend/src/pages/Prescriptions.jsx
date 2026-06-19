@@ -51,6 +51,45 @@ const Prescriptions = () => {
     window.print();
   };
 
+  const handleDownloadPDF = () => {
+    const element = document.getElementById('print-area');
+    const opt = {
+      margin:       0.5,
+      filename:     `Prescription-${selectedPrescription._id.slice(-6).toUpperCase()}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, logging: false, backgroundColor: '#0f172a', useCORS: true },
+      jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+    html2pdf().from(element).set(opt).save();
+  };
+
+  const handleSetReminder = (med) => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+
+    const time = prompt(`Set reminder time for ${med.name} (Format 24h: HH:MM, e.g. 08:30 or 20:00):`, '08:00');
+    if (!time) return;
+
+    const regex = /^([0-9]|0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!regex.test(time)) {
+      alert('Invalid time format. Please use HH:MM (24-hour clock).');
+      return;
+    }
+
+    const currentReminders = JSON.parse(localStorage.getItem('medicine_reminders') || '[]');
+    currentReminders.push({
+      id: `${med.name}-${time}-${Date.now()}`,
+      name: med.name,
+      dosage: med.dosage,
+      time: time,
+    });
+    localStorage.setItem('medicine_reminders', JSON.stringify(currentReminders));
+    alert(`Reminder alarm set for ${med.name} at ${time} daily!`);
+  };
+
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading prescriptions...</div>;
   }
@@ -109,7 +148,7 @@ const Prescriptions = () => {
             {/* Header / Hospital details */}
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '2px solid var(--accent-blue)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
               <div>
-                <h2 style={{ color: 'var(--accent-blue)', fontWeight: 800, margin: 0 }}>🏥 CareHMS</h2>
+                <h2 style={{ color: 'var(--accent-blue)', fontWeight: 800, margin: 0 }}>🏥 AS HOSPITAL</h2>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>123 Health Street, City Hospital</span>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -145,6 +184,7 @@ const Prescriptions = () => {
                     <th>Dosage</th>
                     <th>Frequency</th>
                     <th>Duration</th>
+                    {user.role === 'patient' && <th>Reminders</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -154,6 +194,18 @@ const Prescriptions = () => {
                       <td>{med.dosage}</td>
                       <td>{med.frequency}</td>
                       <td>{med.duration}</td>
+                      {user.role === 'patient' && (
+                        <td>
+                          <button
+                            type="button"
+                            className="btn btn-teal btn-sm"
+                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
+                            onClick={() => handleSetReminder(med)}
+                          >
+                            Set Alarm
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -168,8 +220,12 @@ const Prescriptions = () => {
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
-              <button className="btn btn-secondary btn-sm" onClick={handlePrint}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.5rem', gap: '0.5rem' }}>
+              <button type="button" className="btn btn-teal btn-sm" onClick={handleDownloadPDF}>
+                <FileText size={16} />
+                <span>Download PDF</span>
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={handlePrint}>
                 <Printer size={16} />
                 <span>Print Rx</span>
               </button>

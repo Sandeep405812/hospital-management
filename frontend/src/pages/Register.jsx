@@ -45,7 +45,7 @@ const Register = () => {
       <div className="auth-card" style={{ maxWidth: '600px' }}>
         <div className="auth-header">
           <div className="auth-logo">
-            <span>🏥 CareHMS</span>
+            <span>🏥 AS HOSPITAL</span>
           </div>
           <p className="auth-subtitle">Create a patient account to book appointments</p>
         </div>

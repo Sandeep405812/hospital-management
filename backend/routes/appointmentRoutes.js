@@ -3,6 +3,7 @@ import {
   createAppointment,
   getAppointments,
   updateAppointmentStatus,
+  getAppointmentAnalytics,
 } from '../controllers/appointmentController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
@@ -12,6 +13,8 @@ router
   .route('/')
   .post(protect, createAppointment)
   .get(protect, getAppointments);
+
+router.route('/analytics').get(protect, getAppointmentAnalytics);
 
 router.route('/:id/status').put(protect, updateAppointmentStatus);
 

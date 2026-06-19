@@ -1,9 +1,78 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../utils/api';
+import { api, BACKEND_URL } from '../utils/api';
 
 const Profile = () => {
   const { user, loadUser } = useAuth();
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [paymentSettings, setPaymentSettings] = useState({
+    upiId: '',
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
+    ifscCode: ''
+  });
+  const [settingsLoading, setSettingsLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const data = await api.get('/settings');
+        setPaymentSettings(data);
+      } catch (err) {
+        console.error('Failed to load settings', err);
+      }
+    };
+    if (user && user.role === 'admin') {
+      fetchSettings();
+    }
+  }, [user]);
+
+  const handleSettingsSubmit = async (e) => {
+    e.preventDefault();
+    setSettingsLoading(true);
+    try {
+      await api.put('/settings', paymentSettings);
+      alert('Hospital payment settings updated successfully!');
+    } catch (err) {
+      alert(err.message || 'Failed to update settings');
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    try {
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', file);
+
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${BACKEND_URL}/api/auth/avatar`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formDataUpload
+      });
+
+      const resData = await response.json();
+      if (!response.ok) {
+        throw new Error(resData.message || 'Upload failed');
+      }
+
+      await loadUser();
+      alert('Profile picture updated successfully!');
+    } catch (err) {
+      alert(err.message || 'Avatar upload failed');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const [formData, setFormData] = useState({
     name: '',
     phoneNumber: '',
@@ -113,6 +182,50 @@ const Profile = () => {
                 {isEditing ? 'Cancel' : 'Edit Profile'}
               </button>
             )}
+          </div>
+
+          {/* Avatar Upload Layout */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
+            <div style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '50%',
+              backgroundColor: 'var(--bg-tertiary)',
+              border: '2px solid var(--glass-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              color: 'var(--accent-blue)',
+            }}>
+              {user.avatar ? (
+                <img
+                  src={user.avatar.startsWith('http') ? user.avatar : `${BACKEND_URL}${user.avatar}`}
+                  alt="Avatar"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <span style={{ fontSize: '2rem' }}>👤</span>
+              )}
+            </div>
+            <div>
+              <p style={{ fontWeight: 600, fontSize: '0.95rem', marginBottom: '0.25rem' }}>Profile Picture</p>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => document.getElementById('avatar-input').click()}
+                disabled={uploadingAvatar}
+              >
+                {uploadingAvatar ? 'Uploading...' : 'Change Photo'}
+              </button>
+              <input
+                id="avatar-input"
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                style={{ display: 'none' }}
+              />
+            </div>
           </div>
 
           <div className="form-grid">
@@ -299,6 +412,79 @@ const Profile = () => {
           )}
         </form>
       </div>
+
+      {user.role === 'admin' && (
+        <div style={{ marginTop: '2rem', background: 'var(--glass-bg)', padding: '2rem', borderRadius: 'var(--border-radius-lg)', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-lg)' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--accent-teal)', marginBottom: '1.25rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>🏥 Hospital Payment Configurations</span>
+          </h2>
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+            Set the merchant UPI ID and bank account details here. These values will automatically populate the patients checkout gateway.
+          </p>
+
+          <form onSubmit={handleSettingsSubmit}>
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Merchant UPI ID *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={paymentSettings.upiId}
+                  onChange={(e) => setPaymentSettings({ ...paymentSettings, upiId: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Beneficiary Account Name *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={paymentSettings.accountName}
+                  onChange={(e) => setPaymentSettings({ ...paymentSettings, accountName: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Bank Name *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={paymentSettings.bankName}
+                  onChange={(e) => setPaymentSettings({ ...paymentSettings, bankName: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Account Number *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={paymentSettings.accountNumber}
+                  onChange={(e) => setPaymentSettings({ ...paymentSettings, accountNumber: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">IFSC Code *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={paymentSettings.ifscCode}
+                  onChange={(e) => setPaymentSettings({ ...paymentSettings, ifscCode: e.target.value })}
+                  required
+                />
+              </div>
+            </div>
+
+            <button type="submit" className="btn btn-teal btn-full" style={{ marginTop: '1rem' }} disabled={settingsLoading}>
+              {settingsLoading ? 'Saving Settings...' : 'Update Payment Settings'}
+            </button>
+          </form>
+        </div>
+      )}
     </div>
   );
 };

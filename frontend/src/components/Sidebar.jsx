@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -12,10 +12,18 @@ import {
   Layers,
   LogOut,
   FolderOpen,
+  Activity,
+  Heart,
 } from 'lucide-react';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   if (!user) return null;
 
@@ -31,6 +39,18 @@ const Sidebar = () => {
       label: 'Appointments',
       icon: <Calendar size={20} />,
       roles: ['admin', 'doctor', 'patient'],
+    },
+    {
+      to: '/symptom-checker',
+      label: 'Symptom Checker',
+      icon: <Heart size={20} />,
+      roles: ['patient'],
+    },
+    {
+      to: '/metrics',
+      label: 'Health Tracker',
+      icon: <Activity size={20} />,
+      roles: ['patient'],
     },
     {
       to: '/doctors',
@@ -110,6 +130,8 @@ const Sidebar = () => {
     flexDirection: 'column',
     gap: '0.5rem',
     flexGrow: 1,
+    overflowY: 'auto',
+    marginBottom: '1rem',
   };
 
   const linkStyle = ({ isActive }) => ({
@@ -125,6 +147,24 @@ const Sidebar = () => {
     transition: 'var(--transition-smooth)',
   });
 
+  const themeToggleStyle = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1rem',
+    padding: '0.75rem 1rem',
+    borderRadius: 'var(--border-radius-sm)',
+    color: 'var(--text-primary)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    border: '1px solid var(--glass-border)',
+    width: '100%',
+    textAlign: 'left',
+    cursor: 'pointer',
+    marginBottom: '0.5rem',
+    fontWeight: '600',
+    transition: 'var(--transition-smooth)',
+    justifyContent: 'center',
+  };
+
   const logoutButtonStyle = {
     display: 'flex',
     alignItems: 'center',
@@ -137,7 +177,6 @@ const Sidebar = () => {
     width: '100%',
     textAlign: 'left',
     cursor: 'pointer',
-    marginTop: 'auto',
     fontWeight: '600',
     transition: 'var(--transition-smooth)',
   };
@@ -145,7 +184,7 @@ const Sidebar = () => {
   return (
     <div style={sidebarStyle} className="sidebar">
       <div style={logoStyle}>
-        <span>🏥 CareHMS</span>
+        <span>🏥 AS HOSPITAL</span>
       </div>
 
       <nav style={navLinksStyle}>
@@ -156,6 +195,13 @@ const Sidebar = () => {
           </NavLink>
         ))}
       </nav>
+
+      <button 
+        onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} 
+        style={themeToggleStyle}
+      >
+        <span>{theme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode'}</span>
+      </button>
 
       <button onClick={logout} style={logoutButtonStyle}>
         <LogOut size={20} />

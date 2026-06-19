@@ -16,6 +16,8 @@ import appointmentRoutes from './routes/appointmentRoutes.js';
 import prescriptionRoutes from './routes/prescriptionRoutes.js';
 import billingRoutes from './routes/billingRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
+import metricRoutes from './routes/metricRoutes.js';
+import settingsRoutes from './routes/settingsRoutes.js';
 
 // Model imports for seeding
 import User from './models/User.js';
@@ -70,6 +72,11 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('ice-candidate', { candidate });
   });
 
+  // Relay chat messages inside call rooms
+  socket.on('send-message', ({ roomId, message, senderName }) => {
+    socket.to(roomId).emit('receive-message', { message, senderName });
+  });
+
   // User leaves the consultation room
   socket.on('leave-room', ({ roomId, userName }) => {
     console.log(`User ${userName} left room ${roomId}`);
@@ -98,6 +105,8 @@ app.use('/api/appointments', appointmentRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/metrics', metricRoutes);
+app.use('/api/settings', settingsRoutes);
 
 app.get('/', (req, res) => {
   res.send('Hospital Management System API (with Telemedicine & Uploads) is running...');

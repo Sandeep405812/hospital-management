@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
 import Table from '../components/Table';
@@ -8,6 +8,7 @@ import { Calendar, Plus, Check, X, FileText, Video } from 'lucide-react';
 
 const Appointments = () => {
   const { user } = useAuth();
+  const location = useLocation();
   const [appointments, setAppointments] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [departments, setDepartments] = useState([]);
@@ -22,6 +23,18 @@ const Appointments = () => {
     timeSlot: '09:00 - 10:00',
     symptoms: '',
   });
+
+  useEffect(() => {
+    if (location.state?.openBooking) {
+      setIsBookModalOpen(true);
+      if (location.state.departmentId) {
+        setBookingForm(prev => ({
+          ...prev,
+          departmentId: location.state.departmentId
+        }));
+      }
+    }
+  }, [location]);
 
   // Prescription Modal State
   const [isPrescribeModalOpen, setIsPrescribeModalOpen] = useState(false);
@@ -157,6 +170,7 @@ const Appointments = () => {
               'Department',
               'Date',
               'Time Slot',
+              ...(user.role === 'patient' ? ['Queue No.', 'Est. Wait Time'] : []),
               'Symptoms',
               'Status',
               'Actions',
@@ -182,6 +196,12 @@ const Appointments = () => {
                 <td>{app.department?.name || 'General'}</td>
                 <td>{new Date(app.date).toLocaleDateString()}</td>
                 <td>{app.timeSlot}</td>
+                {user.role === 'patient' && (
+                  <>
+                    <td>{app.queuePosition ? `#${app.queuePosition}` : 'N/A'}</td>
+                    <td>{app.estimatedWaitTime !== null ? `${app.estimatedWaitTime} mins` : 'N/A'}</td>
+                  </>
+                )}
                 <td>{app.symptoms}</td>
                 <td>
                   <span className={`badge badge-${app.status}`}>{app.status}</span>

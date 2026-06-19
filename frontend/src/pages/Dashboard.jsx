@@ -27,6 +27,8 @@ const Dashboard = () => {
   });
   const [recentAppointments, setRecentAppointments] = useState([]);
   const [adminLedger, setAdminLedger] = useState([]);
+  const [billingAnalytics, setBillingAnalytics] = useState(null);
+  const [appointmentAnalytics, setAppointmentAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -57,10 +59,15 @@ const Dashboard = () => {
           // Show last 5 appointments
           setRecentAppointments(apps.slice(0, 5));
           setAdminLedger(bills);
+
+          // Fetch Analytics
+          const bAnalytics = await api.get('/billing/analytics');
+          const aAnalytics = await api.get('/appointments/analytics');
+          setBillingAnalytics(bAnalytics);
+          setAppointmentAnalytics(aAnalytics);
         } else if (user.role === 'doctor') {
           const apps = await api.get('/appointments');
           const scripts = await api.get('/prescriptions');
-          const pats = await api.get('/patients'); // To count overall if needed, or filter unique patients
 
           // Filter unique patients for this doctor
           const myPatients = new Set(apps.map((a) => a.patient?._id)).size;
@@ -72,6 +79,10 @@ const Dashboard = () => {
             patients: myPatients,
           });
           setRecentAppointments(apps.slice(0, 5));
+
+          // Fetch Analytics
+          const aAnalytics = await api.get('/appointments/analytics');
+          setAppointmentAnalytics(aAnalytics);
         } else if (user.role === 'patient') {
           const apps = await api.get('/appointments');
           const scripts = await api.get('/prescriptions');
@@ -98,6 +109,155 @@ const Dashboard = () => {
     }
   }, [user]);
 
+  // Chart Renderers
+  const renderRevenueChart = () => {
+    if (!billingAnalytics || !billingAnalytics.monthlyRevenue) return null;
+    const data = Object.entries(billingAnalytics.monthlyRevenue);
+    if (data.length === 0) return null;
+
+    const width = 450;
+    const height = 180;
+    const paddingX = 40;
+    const paddingY = 30;
+
+    const values = data.map(([_, val]) => val);
+    const maxVal = Math.max(...values, 1000);
+
+    const chartWidth = width - 2 * paddingX;
+    const chartHeight = height - 2 * paddingY;
+    const barWidth = Math.min(40, (chartWidth / data.length) * 0.6);
+    const gap = (chartWidth - barWidth * data.length) / (data.length - 1 || 1);
+
+    return (
+      <div style={{ background: 'var(--glass-bg)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-md)' }}>
+        <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--text-primary)' }}>Monthly Revenue Trend</h3>
+        <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="180">
+          <defs>
+            <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--accent-teal)" />
+              <stop offset="100%" stopColor="var(--accent-blue)" />
+            </linearGradient>
+          </defs>
+          
+          <line x1={paddingX} y1={paddingY} x2={width - paddingX} y2={paddingY} stroke="rgba(255,255,255,0.05)" />
+          <line x1={paddingX} y1={paddingY + chartHeight / 2} x2={width - paddingX} y2={paddingY + chartHeight / 2} stroke="rgba(255,255,255,0.05)" />
+          <line x1={paddingX} y1={height - paddingY} x2={width - paddingX} y2={height - paddingY} stroke="rgba(255,255,255,0.1)" />
+
+          {data.map(([month, val], idx) => {
+            const x = paddingX + idx * (barWidth + gap);
+            const barHeight = (val / maxVal) * chartHeight;
+            const y = height - paddingY - barHeight;
+            const monthLabel = month.slice(-2);
+
+            return (
+              <g key={month}>
+                <rect x={x} y={y} width={barWidth} height={barHeight} rx="4" fill="url(#barGradient)" />
+                <text x={x + barWidth / 2} y={y - 6} textAnchor="middle" fill="var(--text-primary)" fontSize="9" fontWeight="600">
+                  ₹{val}
+                </text>
+                <text x={x + barWidth / 2} y={height - 10} textAnchor="middle" fill="var(--text-secondary)" fontSize="9">
+                  M {monthLabel}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    );
+  };
+
+  const renderStatusDonutChart = () => {
+    if (!appointmentAnalytics || !appointmentAnalytics.statusCounts) return null;
+    const counts = appointmentAnalytics.statusCounts;
+    const total = appointmentAnalytics.totalCount || 0;
+
+    if (total === 0) return null;
+
+    const items = [
+      { key: 'completed', color: 'var(--success)', label: 'Completed' },
+      { key: 'approved', color: 'var(--accent-teal)', label: 'Approved' },
+      { key: 'pending', color: 'var(--warning)', label: 'Pending' },
+      { key: 'cancelled', color: 'var(--danger)', label: 'Cancelled' }
+    ].filter(item => (counts[item.key] || 0) > 0);
+
+    const radius = 45;
+    const circum = 2 * Math.PI * radius;
+    let accumulatedPercent = 0;
+
+    return (
+      <div style={{ background: 'var(--glass-bg)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-md)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--text-primary)' }}>Appointment Status Ratios</h3>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', justifyContent: 'center' }}>
+          <svg width="110" height="110" viewBox="0 0 120 120" style={{ transform: 'rotate(-90deg)', overflow: 'visible' }}>
+            <circle cx="60" cy="60" r={radius} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" />
+            
+            {items.map((item) => {
+              const count = counts[item.key] || 0;
+              const percent = count / total;
+              const strokeLength = percent * circum;
+              const strokeOffset = circum - strokeLength + (accumulatedPercent * circum);
+              accumulatedPercent -= percent;
+
+              return (
+                <circle
+                  key={item.key}
+                  cx="60"
+                  cy="60"
+                  r={radius}
+                  fill="none"
+                  stroke={item.color}
+                  strokeWidth="12"
+                  strokeDasharray={`${strokeLength} ${circum}`}
+                  strokeDashoffset={strokeOffset}
+                />
+              );
+            })}
+          </svg>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.8rem' }}>
+            {items.map((item) => (
+              <div key={item.key} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: item.color, display: 'inline-block' }}></span>
+                <span style={{ fontWeight: 600 }}>{counts[item.key]}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderDepartmentLoads = () => {
+    if (!appointmentAnalytics || !appointmentAnalytics.departmentCounts) return null;
+    const depts = Object.entries(appointmentAnalytics.departmentCounts);
+    const total = appointmentAnalytics.totalCount || 1;
+    if (depts.length === 0) return null;
+
+    return (
+      <div style={{ background: 'var(--glass-bg)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-md)' }}>
+        <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.25rem', color: 'var(--text-primary)' }}>Department Loads</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {depts.slice(0, 4).map(([name, count]) => {
+            const percentage = Math.round((count / total) * 100);
+            return (
+              <div key={name}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                  <span style={{ fontWeight: 600 }}>{name}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{count} ({percentage}%)</span>
+                </div>
+                <div style={{ height: '8px', width: '100%', backgroundColor: 'var(--bg-tertiary)', borderRadius: '4px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${percentage}%`, backgroundColor: 'var(--accent-teal)', borderRadius: '4px' }}></div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading dashboard details...</div>;
   }
@@ -107,7 +267,7 @@ const Dashboard = () => {
       <div className="page-header">
         <div>
           <h1 className="page-title">Welcome back, {user.name}</h1>
-          <p className="page-subtitle">Here is what's happening at CareHMS today</p>
+          <p className="page-subtitle">Here is what's happening at AS HOSPITAL today</p>
         </div>
         {user.role === 'patient' && (
           <Link to="/appointments" className="btn btn-primary">
@@ -198,6 +358,22 @@ const Dashboard = () => {
             icon={<CreditCard size={24} />}
             colorClass="danger"
           />
+        </div>
+      )}
+
+      {/* Admin Visual Charts Section */}
+      {user.role === 'admin' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '2rem', marginTop: '2rem', marginBottom: '2rem' }}>
+          {renderRevenueChart()}
+          {renderStatusDonutChart()}
+        </div>
+      )}
+
+      {/* Doctor Visual Charts Section */}
+      {user.role === 'doctor' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginTop: '2rem', marginBottom: '2rem' }}>
+          {renderStatusDonutChart()}
+          {renderDepartmentLoads()}
         </div>
       )}
 

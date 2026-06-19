@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../utils/api';
+import { api, BACKEND_URL } from '../utils/api';
 import Table from '../components/Table';
 import Modal from '../components/Modal';
 import { Mail, Phone, Eye, Edit, Calendar, FolderOpen } from 'lucide-react';
@@ -262,7 +262,7 @@ const Patients = () => {
                 <td>{new Date(rep.date).toLocaleDateString()}</td>
                 <td>
                   <a
-                    href={`http://localhost:5000${rep.filePath}`}
+                    href={`${BACKEND_URL}${rep.filePath}`}
                     target="_blank"
                     rel="noreferrer"
                     className="btn btn-secondary btn-sm"
