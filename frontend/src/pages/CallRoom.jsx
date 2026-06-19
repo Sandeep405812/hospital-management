@@ -25,6 +25,9 @@ const CallRoom = () => {
   // Accepted call is true since Patient accepts from the global popup modal
   const [acceptedCall] = useState(true);
   
+  // Hosts are doctors or admins
+  const isHost = user?.role === 'doctor' || user?.role === 'admin';
+  
   const socketRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -120,8 +123,8 @@ const CallRoom = () => {
       peerConnectionRef.current = null;
     }
     if (socketRef.current) {
-      // If doctor leaves or cancels, send cancel event to patient
-      if (user.role === 'doctor') {
+      // If host leaves or cancels, send cancel event to patient
+      if (isHost) {
         socketRef.current.emit('cancel-call', { roomId: id, patientUserId: appointment?.patient?.user?._id });
       }
       socketRef.current.emit('leave-room', { roomId: id, userName: user.name });
@@ -162,8 +165,8 @@ const CallRoom = () => {
     // Join room in socket signaling server ONLY AFTER media tracks are fully ready
     socketRef.current.emit('join-room', { roomId: id, userId: user._id, userName: user.name });
 
-    // Doctor calls the patient
-    if (user.role === 'doctor') {
+    // Host calls the patient
+    if (isHost) {
       socketRef.current.emit('call-patient', {
         roomId: id,
         patientUserId: appointment.patient?.user?._id,
@@ -222,11 +225,11 @@ const CallRoom = () => {
       }
     });
 
-    // Handle peer leaves (when Doctor leaves, kick Patient out automatically)
+    // Handle peer leaves (when Doctor/Admin leaves, kick Patient out automatically)
     socketRef.current.on('user-left', ({ userName }) => {
       console.log(`${userName} left call`);
       if (user.role === 'patient') {
-        alert('The Doctor has ended the call.');
+        alert('The Call has ended.');
         handleEndCall();
       } else {
         setCallStatus('ready');
@@ -541,7 +544,7 @@ const CallRoom = () => {
           {isCamOff ? <VideoOff size={24} /> : <Video size={24} />}
         </button>
 
-        {user.role === 'doctor' && (
+        {isHost && (
           <button
             onClick={handleEndCall}
             style={controlButtonStyle(false, 'var(--danger)')}
