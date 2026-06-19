@@ -44,9 +44,43 @@ const io = new Server(server, {
   },
 });
 
+// Global Map to track online users (userId -> socketId)
+const onlineUsers = new Map();
+
 // Socket.io Real-Time Signaling Protocol for WebRTC Telemedicine Call
 io.on('connection', (socket) => {
   console.log(`Socket Connected: ${socket.id}`);
+
+  // Register user socket mapping
+  socket.on('register-user', ({ userId }) => {
+    if (userId) {
+      onlineUsers.set(userId.toString(), socket.id);
+      socket.userId = userId.toString();
+      console.log(`Registered user socket: ${userId} -> ${socket.id}`);
+    }
+  });
+
+  // Doctor calls a Patient (relays to Patient's global socket)
+  socket.on('call-patient', ({ roomId, patientUserId, doctorName }) => {
+    const patientSocketId = onlineUsers.get(patientUserId?.toString());
+    console.log(`Call request: Doctor calling Patient ${patientUserId}. Socket: ${patientSocketId}`);
+    if (patientSocketId) {
+      io.to(patientSocketId).emit('incoming-call', { roomId, doctorName });
+    }
+  });
+
+  // Doctor cancels the call (before Patient accepts)
+  socket.on('cancel-call', ({ roomId, patientUserId }) => {
+    const patientSocketId = onlineUsers.get(patientUserId?.toString());
+    if (patientSocketId) {
+      io.to(patientSocketId).emit('call-cancelled');
+    }
+  });
+
+  // Patient rejects the call (notifies the Doctor in the CallRoom)
+  socket.on('reject-call', ({ roomId }) => {
+    socket.to(roomId).emit('call-rejected');
+  });
 
   // User joins the virtual consultation room corresponding to their Appointment ID
   socket.on('join-room', ({ roomId, userId, userName }) => {
@@ -86,6 +120,10 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log(`Socket Disconnected: ${socket.id}`);
+    if (socket.userId) {
+      onlineUsers.delete(socket.userId);
+      console.log(`Unregistered user socket: ${socket.userId}`);
+    }
   });
 });
 

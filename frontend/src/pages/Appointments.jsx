@@ -239,7 +239,7 @@ const Appointments = () => {
                     )}
 
                     {/* Telemedicine Video Call Action */}
-                    {app.status === 'approved' && (
+                    {app.status === 'approved' && (user.role === 'doctor' || user.role === 'patient') && (
                       <Link
                         to={`/appointments/${app._id}/call`}
                         className="btn btn-teal btn-sm"

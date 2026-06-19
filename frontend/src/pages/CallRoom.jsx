@@ -22,8 +22,8 @@ const CallRoom = () => {
   const [messages, setMessages] = useState([]);
   const [typedText, setTypedText] = useState('');
   
-  // Call Acceptance state
-  const [acceptedCall, setAcceptedCall] = useState(user.role === 'doctor'); // Doctor starts immediately, Patient accepts
+  // Accepted call is true since Patient accepts from the global popup modal
+  const [acceptedCall] = useState(true);
   
   const socketRef = useRef(null);
   const peerConnectionRef = useRef(null);
@@ -59,7 +59,13 @@ const CallRoom = () => {
     if (loading || !appointment || !acceptedCall) return;
 
     // Connect to Signaling Socket Server using the dynamic backend URL
-    socketRef.current = io(BACKEND_URL);
+    let socketUrl = BACKEND_URL;
+    try {
+      socketUrl = new URL(BACKEND_URL).origin;
+    } catch (e) {
+      console.warn("Invalid BACKEND_URL, using as-is:", BACKEND_URL);
+    }
+    socketRef.current = io(socketUrl);
     
     // Initialize Local Media Streams
     const startMedia = async () => {
@@ -114,6 +120,10 @@ const CallRoom = () => {
       peerConnectionRef.current = null;
     }
     if (socketRef.current) {
+      // If doctor leaves or cancels, send cancel event to patient
+      if (user.role === 'doctor') {
+        socketRef.current.emit('cancel-call', { roomId: id, patientUserId: appointment?.patient?.user?._id });
+      }
       socketRef.current.emit('leave-room', { roomId: id, userName: user.name });
       socketRef.current.disconnect();
       socketRef.current = null;
@@ -151,6 +161,21 @@ const CallRoom = () => {
 
     // Join room in socket signaling server ONLY AFTER media tracks are fully ready
     socketRef.current.emit('join-room', { roomId: id, userId: user._id, userName: user.name });
+
+    // Doctor calls the patient
+    if (user.role === 'doctor') {
+      socketRef.current.emit('call-patient', {
+        roomId: id,
+        patientUserId: appointment.patient?.user?._id,
+        doctorName: user.name
+      });
+
+      // Listen for call rejection from patient
+      socketRef.current.on('call-rejected', () => {
+        alert('The Patient rejected the call.');
+        handleEndCall();
+      });
+    }
 
     // Handle peer joins
     socketRef.current.on('user-joined', async ({ userName }) => {
@@ -263,79 +288,6 @@ const CallRoom = () => {
 
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading Telemedicine Room...</div>;
-  }
-
-  // If call is not accepted yet (applicable for Patient role)
-  if (!acceptedCall) {
-    return (
-      <div style={{
-        minHeight: 'calc(100vh - 120px)',
-        backgroundColor: '#090d16',
-        borderRadius: 'var(--border-radius-lg)',
-        border: '1px solid var(--glass-border)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '2rem',
-      }}>
-        <div style={{
-          background: 'var(--glass-bg)',
-          backdropFilter: 'blur(12px)',
-          border: '1px solid var(--glass-border)',
-          borderRadius: 'var(--border-radius-lg)',
-          padding: '3rem',
-          maxWidth: '500px',
-          width: '100%',
-          textAlign: 'center',
-          boxShadow: 'var(--shadow-lg)',
-          animation: 'fadeIn 0.5s ease-out',
-        }}>
-          <div style={{
-            width: '100px',
-            height: '100px',
-            borderRadius: '50%',
-            backgroundColor: 'rgba(20, 184, 166, 0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--accent-teal)',
-            margin: '0 auto 2rem',
-            animation: 'pulse 2s infinite',
-          }}>
-            <PhoneCall size={48} className="call-pulse-icon" />
-          </div>
-          
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.5rem', color: '#fff' }}>Incoming Video Call</h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '1rem' }}>
-            Dr. <strong>{appointment?.doctor?.user?.name || 'Your Doctor'}</strong> is ready to connect with you.
-          </p>
-
-          <button 
-            onClick={() => setAcceptedCall(true)}
-            className="btn btn-teal btn-full" 
-            style={{ 
-              padding: '1rem', 
-              fontSize: '1.1rem', 
-              display: 'flex', 
-              gap: '0.75rem', 
-              justifyContent: 'center',
-              boxShadow: '0 4px 15px rgba(20, 184, 166, 0.4)'
-            }}
-          >
-            <Video size={22} />
-            <span>Accept Call</span>
-          </button>
-        </div>
-
-        <style>{`
-          @keyframes pulse {
-            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.4); }
-            70% { transform: scale(1.08); box-shadow: 0 0 0 15px rgba(20, 184, 166, 0); }
-            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(20, 184, 166, 0); }
-          }
-        `}</style>
-      </div>
-    );
   }
 
   // Styles

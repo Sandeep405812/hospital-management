@@ -1,6 +1,9 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { io } from 'socket.io-client';
+import { BACKEND_URL } from './utils/api';
+import { Phone, PhoneOff, Video } from 'lucide-react';
 
 // Components
 import Sidebar from './components/Sidebar';
@@ -59,10 +62,164 @@ const GuestRoute = () => {
 
 // Main Dashboard Layout
 const DashboardLayout = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
+  const [incomingCall, setIncomingCall] = React.useState(null);
+  const globalSocketRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!user) return;
+
+    // Connect to the global socket using the base origin to avoid subpath errors
+    let socketUrl = BACKEND_URL;
+    try {
+      socketUrl = new URL(BACKEND_URL).origin;
+    } catch (e) {
+      console.warn("Invalid BACKEND_URL:", BACKEND_URL);
+    }
+    
+    const socket = io(socketUrl);
+    globalSocketRef.current = socket;
+
+    // Register this user session
+    socket.emit('register-user', { userId: user._id });
+
+    // Listen for incoming call notifications
+    socket.on('incoming-call', ({ roomId, doctorName }) => {
+      setIncomingCall({ roomId, doctorName });
+    });
+
+    // Listen for call cancellations
+    socket.on('call-cancelled', () => {
+      setIncomingCall(null);
+    });
+
+    return () => {
+      socket.disconnect();
+      globalSocketRef.current = null;
+    };
+  }, [user]);
+
+  const handleAcceptCall = () => {
+    if (incomingCall) {
+      navigate(`/appointments/${incomingCall.roomId}/call`);
+      setIncomingCall(null);
+    }
+  };
+
+  const handleRejectCall = () => {
+    if (incomingCall && globalSocketRef.current) {
+      globalSocketRef.current.emit('reject-call', { roomId: incomingCall.roomId });
+      setIncomingCall(null);
+    }
+  };
 
   return (
     <div className={`dashboard-layout ${sidebarOpen ? 'sidebar-active' : ''}`}>
+      {/* Floating Incoming Call Modal Popup */}
+      {incomingCall && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(9, 13, 22, 0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          animation: 'fadeIn 0.3s ease-out',
+        }}>
+          <div style={{
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--glass-border)',
+            borderRadius: 'var(--border-radius-lg)',
+            padding: '2.5rem',
+            maxWidth: '420px',
+            width: '90%',
+            textAlign: 'center',
+            boxShadow: 'var(--shadow-lg)',
+          }}>
+            <div style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(20, 184, 166, 0.15)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--accent-teal)',
+              margin: '0 auto 1.5rem',
+              animation: 'pulse 1.8s infinite',
+            }}>
+              <Phone size={36} style={{ animation: 'shake 0.5s infinite' }} />
+            </div>
+
+            <h3 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.5rem', color: '#fff' }}>
+              Incoming Video Call
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.95rem' }}>
+              Dr. <strong>{incomingCall.doctorName}</strong> is calling you for consultation.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <button 
+                onClick={handleAcceptCall}
+                className="btn btn-teal"
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '0.5rem',
+                  boxShadow: '0 4px 12px rgba(20, 184, 166, 0.3)',
+                  padding: '0.8rem',
+                }}
+              >
+                <Video size={18} />
+                <span>Accept</span>
+              </button>
+
+              <button 
+                onClick={handleRejectCall}
+                className="btn btn-danger"
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '0.5rem',
+                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.3)',
+                  padding: '0.8rem',
+                }}
+              >
+                <PhoneOff size={18} />
+                <span>Reject</span>
+              </button>
+            </div>
+          </div>
+          
+          <style>{`
+            @keyframes pulse {
+              0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.4); }
+              70% { transform: scale(1.06); box-shadow: 0 0 0 12px rgba(20, 184, 166, 0); }
+              100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(20, 184, 166, 0); }
+            }
+            @keyframes shake {
+              0% { transform: rotate(0); }
+              15% { transform: rotate(15deg); }
+              30% { transform: rotate(-15deg); }
+              45% { transform: rotate(10deg); }
+              60% { transform: rotate(-10deg); }
+              75% { transform: rotate(4deg); }
+              85% { transform: rotate(-4deg); }
+              100% { transform: rotate(0); }
+            }
+          `}</style>
+        </div>
+      )}
+
       {/* Mobile Sidebar Backdrop Overlay */}
       {sidebarOpen && (
         <div 
