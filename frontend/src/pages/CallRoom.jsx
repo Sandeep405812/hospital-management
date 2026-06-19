@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../utils/api';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Settings, Send } from 'lucide-react';
+import { api, BACKEND_URL } from '../utils/api';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Settings, Send, PhoneCall } from 'lucide-react';
 
 const CallRoom = () => {
   const { id } = useParams(); // Appointment ID
@@ -21,6 +21,9 @@ const CallRoom = () => {
   // Chat States
   const [messages, setMessages] = useState([]);
   const [typedText, setTypedText] = useState('');
+  
+  // Call Acceptance state
+  const [acceptedCall, setAcceptedCall] = useState(user.role === 'doctor'); // Doctor starts immediately, Patient accepts
   
   const socketRef = useRef(null);
   const peerConnectionRef = useRef(null);
@@ -53,10 +56,10 @@ const CallRoom = () => {
 
   // Handle WebRTC Peer Connection & Socket Signaling
   useEffect(() => {
-    if (loading || !appointment) return;
+    if (loading || !appointment || !acceptedCall) return;
 
-    // Connect to Signaling Socket Server
-    socketRef.current = io('http://localhost:5000');
+    // Connect to Signaling Socket Server using the dynamic backend URL
+    socketRef.current = io(BACKEND_URL);
     
     // Initialize Local Media Streams
     const startMedia = async () => {
@@ -92,7 +95,7 @@ const CallRoom = () => {
     return () => {
       cleanupMedia();
     };
-  }, [id, appointment, loading, user.name]);
+  }, [id, appointment, loading, user.name, acceptedCall]);
 
   // Auto-scroll chat to bottom
   useEffect(() => {
@@ -194,12 +197,17 @@ const CallRoom = () => {
       }
     });
 
-    // Handle peer leaves
+    // Handle peer leaves (when Doctor leaves, kick Patient out automatically)
     socketRef.current.on('user-left', ({ userName }) => {
       console.log(`${userName} left call`);
-      setCallStatus('ready');
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = null;
+      if (user.role === 'patient') {
+        alert('The Doctor has ended the call.');
+        handleEndCall();
+      } else {
+        setCallStatus('ready');
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = null;
+        }
       }
     });
   };
@@ -255,6 +263,79 @@ const CallRoom = () => {
 
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading Telemedicine Room...</div>;
+  }
+
+  // If call is not accepted yet (applicable for Patient role)
+  if (!acceptedCall) {
+    return (
+      <div style={{
+        minHeight: 'calc(100vh - 120px)',
+        backgroundColor: '#090d16',
+        borderRadius: 'var(--border-radius-lg)',
+        border: '1px solid var(--glass-border)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2rem',
+      }}>
+        <div style={{
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(12px)',
+          border: '1px solid var(--glass-border)',
+          borderRadius: 'var(--border-radius-lg)',
+          padding: '3rem',
+          maxWidth: '500px',
+          width: '100%',
+          textAlign: 'center',
+          boxShadow: 'var(--shadow-lg)',
+          animation: 'fadeIn 0.5s ease-out',
+        }}>
+          <div style={{
+            width: '100px',
+            height: '100px',
+            borderRadius: '50%',
+            backgroundColor: 'rgba(20, 184, 166, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--accent-teal)',
+            margin: '0 auto 2rem',
+            animation: 'pulse 2s infinite',
+          }}>
+            <PhoneCall size={48} className="call-pulse-icon" />
+          </div>
+          
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.5rem', color: '#fff' }}>Incoming Video Call</h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '1rem' }}>
+            Dr. <strong>{appointment?.doctor?.user?.name || 'Your Doctor'}</strong> is ready to connect with you.
+          </p>
+
+          <button 
+            onClick={() => setAcceptedCall(true)}
+            className="btn btn-teal btn-full" 
+            style={{ 
+              padding: '1rem', 
+              fontSize: '1.1rem', 
+              display: 'flex', 
+              gap: '0.75rem', 
+              justifyContent: 'center',
+              boxShadow: '0 4px 15px rgba(20, 184, 166, 0.4)'
+            }}
+          >
+            <Video size={22} />
+            <span>Accept Call</span>
+          </button>
+        </div>
+
+        <style>{`
+          @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.4); }
+            70% { transform: scale(1.08); box-shadow: 0 0 0 15px rgba(20, 184, 166, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(20, 184, 166, 0); }
+          }
+        `}</style>
+      </div>
+    );
   }
 
   // Styles
@@ -508,13 +589,15 @@ const CallRoom = () => {
           {isCamOff ? <VideoOff size={24} /> : <Video size={24} />}
         </button>
 
-        <button
-          onClick={handleEndCall}
-          style={controlButtonStyle(false, 'var(--danger)')}
-          title="End Telemedicine Call"
-        >
-          <PhoneOff size={24} />
-        </button>
+        {user.role === 'doctor' && (
+          <button
+            onClick={handleEndCall}
+            style={controlButtonStyle(false, 'var(--danger)')}
+            title="End Telemedicine Call"
+          >
+            <PhoneOff size={24} />
+          </button>
+        )}
       </div>
 
       <style>{`

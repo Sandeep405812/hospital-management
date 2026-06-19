@@ -59,11 +59,29 @@ const GuestRoute = () => {
 
 // Main Dashboard Layout
 const DashboardLayout = () => {
+  const [sidebarOpen, setSidebarOpen] = React.useState(false);
+
   return (
-    <div className="dashboard-layout">
-      <Sidebar />
+    <div className={`dashboard-layout ${sidebarOpen ? 'sidebar-active' : ''}`}>
+      {/* Mobile Sidebar Backdrop Overlay */}
+      {sidebarOpen && (
+        <div 
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(9, 13, 22, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 99,
+          }}
+        />
+      )}
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="main-content">
-        <Navbar />
+        <Navbar onMenuClick={() => setSidebarOpen(true)} />
         <div style={{ marginTop: '1.5rem' }}>
           <Outlet />
         </div>

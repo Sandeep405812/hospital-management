@@ -1,9 +1,9 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { BACKEND_URL } from '../utils/api';
-import { User } from 'lucide-react';
+import { User, Menu } from 'lucide-react';
 
-const Navbar = ({ title }) => {
+const Navbar = ({ title, onMenuClick }) => {
   const { user } = useAuth();
 
   if (!user) return null;
@@ -24,6 +24,7 @@ const Navbar = ({ title }) => {
   const titleStyle = {
     fontSize: '1.25rem',
     fontWeight: '700',
+    flexGrow: 1,
   };
 
   const userSectionStyle = {
@@ -61,10 +62,29 @@ const Navbar = ({ title }) => {
   };
 
   return (
-    <div style={navbarStyle}>
-      <div style={titleStyle}>{title || 'AS HOSPITAL'}</div>
+    <div style={navbarStyle} className="navbar">
+      {/* Mobile Hamburger menu toggle */}
+      <button 
+        onClick={onMenuClick}
+        className="navbar-menu-btn"
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          color: 'var(--text-primary)',
+          marginRight: '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Menu size={24} />
+      </button>
+
+      <div style={titleStyle} className="navbar-title">{title || 'AS HOSPITAL'}</div>
+
       <div style={userSectionStyle}>
-        <div style={userInfoStyle}>
+        <div style={userInfoStyle} className="navbar-user-info">
           <div style={userNameStyle}>{user.name}</div>
           <span style={userRoleStyle}>{user.role}</span>
         </div>

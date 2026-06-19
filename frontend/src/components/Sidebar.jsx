@@ -14,9 +14,10 @@ import {
   FolderOpen,
   Activity,
   Heart,
+  X,
 } from 'lucide-react';
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
 
@@ -101,7 +102,6 @@ const Sidebar = () => {
   const sidebarStyle = {
     position: 'fixed',
     top: 0,
-    left: 0,
     bottom: 0,
     width: '260px',
     backgroundColor: 'var(--bg-secondary)',
@@ -182,14 +182,31 @@ const Sidebar = () => {
   };
 
   return (
-    <div style={sidebarStyle} className="sidebar">
+    <div style={sidebarStyle} className={`sidebar ${isOpen ? 'open' : ''}`}>
+      {/* Mobile Close Button */}
+      <button 
+        onClick={onClose}
+        className="sidebar-close-btn"
+        style={{
+          position: 'absolute',
+          top: '1rem',
+          right: '1rem',
+          background: 'none',
+          border: 'none',
+          color: 'var(--text-secondary)',
+          cursor: 'pointer',
+        }}
+      >
+        <X size={24} />
+      </button>
+
       <div style={logoStyle}>
         <span>🏥 AS HOSPITAL</span>
       </div>
 
       <nav style={navLinksStyle}>
         {filteredLinks.map((link) => (
-          <NavLink key={link.to} to={link.to} style={linkStyle}>
+          <NavLink key={link.to} to={link.to} style={linkStyle} onClick={onClose}>
             {link.icon}
             <span>{link.label}</span>
           </NavLink>
@@ -203,7 +220,7 @@ const Sidebar = () => {
         <span>{theme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode'}</span>
       </button>
 
-      <button onClick={logout} style={logoutButtonStyle}>
+      <button onClick={() => { onClose(); logout(); }} style={logoutButtonStyle}>
         <LogOut size={20} />
         <span>Logout</span>
       </button>
