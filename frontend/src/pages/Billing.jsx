@@ -10,6 +10,8 @@ const Billing = () => {
   const { user } = useAuth();
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
 
   // Pay Modal State
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
@@ -86,6 +88,18 @@ const Billing = () => {
     window.print();
   };
 
+  const filteredBills = bills.filter((bill) => {
+    const patientName = bill.patient?.user?.name || '';
+    const doctorName = bill.appointment?.doctor?.user?.name || '';
+    const matchesSearch = 
+      patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doctorName.toLowerCase().includes(searchQuery.toLowerCase());
+      
+    const matchesStatus = statusFilter === 'All' || bill.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading billing statements...</div>;
   }
@@ -99,8 +113,49 @@ const Billing = () => {
         </div>
       </div>
 
+      {/* Search & Filter Controls */}
+      <div style={{
+        display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap',
+        backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--glass-border)',
+        padding: '1rem', borderRadius: 'var(--border-radius)', alignItems: 'center'
+      }}>
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <input
+            type="text"
+            className="form-input"
+            style={{ margin: 0, width: '100%' }}
+            placeholder="Search by patient or doctor name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <div style={{ width: '180px' }}>
+          <select
+            className="form-select"
+            style={{ margin: 0 }}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="All">All Invoices</option>
+            <option value="paid">Paid</option>
+            <option value="unpaid">Unpaid</option>
+          </select>
+        </div>
+        {(searchQuery || statusFilter !== 'All') && (
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => {
+              setSearchQuery('');
+              setStatusFilter('All');
+            }}
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
       <div className="dashboard-section">
-        {bills.length === 0 ? (
+        {filteredBills.length === 0 ? (
           <p style={{ color: 'var(--text-secondary)', padding: '1rem 0' }}>No billing invoices found.</p>
         ) : (
           <Table
@@ -114,7 +169,7 @@ const Billing = () => {
               'Actions',
             ]}
           >
-            {bills.map((bill) => (
+            {filteredBills.map((bill) => (
               <tr key={bill._id}>
                 <td>{new Date(bill.createdAt).toLocaleDateString()}</td>
                 {user.role === 'patient' ? (

@@ -148,3 +148,21 @@ export const deleteDoctor = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// @desc    Update doctor current queue token
+// @route   PUT /api/doctors/:id/queue
+// @access  Private
+export const updateDoctorQueue = async (req, res) => {
+  const { currentToken } = req.body;
+  try {
+    const doctor = await Doctor.findById(req.params.id);
+    if (!doctor) {
+      return res.status(404).json({ message: 'Doctor not found' });
+    }
+    doctor.currentToken = currentToken;
+    await doctor.save();
+    res.json({ message: 'Queue updated successfully', currentToken: doctor.currentToken });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

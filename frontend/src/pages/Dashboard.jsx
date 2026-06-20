@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../utils/api';
+import { api, BACKEND_URL } from '../utils/api';
 import StatCard from '../components/StatCard';
 import Table from '../components/Table';
 import gsap from 'gsap';
 import { Link } from 'react-router-dom';
+import { io } from 'socket.io-client';
 import {
   Users,
   Calendar,
@@ -30,85 +31,148 @@ const Dashboard = () => {
   const [adminLedger, setAdminLedger] = useState([]);
   const [billingAnalytics, setBillingAnalytics] = useState(null);
   const [appointmentAnalytics, setAppointmentAnalytics] = useState(null);
+  const [myDoctorProfile, setMyDoctorProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [socket, setSocket] = useState(null);
+
+  // Initialize socket for live queue updates
+  useEffect(() => {
+    if (user && user.role === 'doctor') {
+      let socketUrl = BACKEND_URL;
+      try {
+        socketUrl = new URL(BACKEND_URL).origin;
+      } catch (e) {
+        console.warn("Invalid BACKEND_URL:", BACKEND_URL);
+      }
+      const newSocket = io(socketUrl);
+      setSocket(newSocket);
+      return () => newSocket.disconnect();
+    }
+  }, [user]);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch data based on role
+      if (user.role === 'admin') {
+        const docs = await api.get('/doctors');
+        const pats = await api.get('/patients');
+        const apps = await api.get('/appointments');
+        const depts = await api.get('/departments');
+        const bills = await api.get('/billing');
+
+        const totalEarnings = bills
+          .filter((b) => b.status === 'paid')
+          .reduce((sum, b) => sum + b.total, 0);
+
+        setStats({
+          doctors: docs.length,
+          patients: pats.length,
+          appointments: apps.length,
+          earnings: totalEarnings,
+          departments: depts.length,
+        });
+
+        // Show last 5 appointments
+        setRecentAppointments(apps.slice(0, 5));
+        setAdminLedger(bills);
+
+        // Fetch Analytics
+        const bAnalytics = await api.get('/billing/analytics');
+        const aAnalytics = await api.get('/appointments/analytics');
+        setBillingAnalytics(bAnalytics);
+        setAppointmentAnalytics(aAnalytics);
+      } else if (user.role === 'doctor') {
+        const apps = await api.get('/appointments');
+        const scripts = await api.get('/prescriptions');
+        const docs = await api.get('/doctors');
+        
+        // Find doctor profile
+        const myDoc = docs.find((d) => d.user?._id === user._id);
+        if (myDoc) {
+          setMyDoctorProfile(myDoc);
+        }
+
+        // Filter unique patients for this doctor
+        const myPatients = new Set(apps.map((a) => a.patient?._id)).size;
+
+        setStats({
+          appointments: apps.length,
+          pendingAppointments: apps.filter((a) => a.status === 'pending').length,
+          prescriptions: scripts.length,
+          patients: myPatients,
+        });
+        setRecentAppointments(apps.slice(0, 10)); // Fetch more to find next pending patient
+
+        // Fetch Analytics
+        const aAnalytics = await api.get('/appointments/analytics');
+        setAppointmentAnalytics(aAnalytics);
+      } else if (user.role === 'patient') {
+        const apps = await api.get('/appointments');
+        const scripts = await api.get('/prescriptions');
+        const bills = await api.get('/billing');
+
+        const unpaidCount = bills.filter((b) => b.status === 'unpaid').length;
+
+        setStats({
+          appointments: apps.length,
+          prescriptions: scripts.length,
+          unpaidBills: unpaidCount,
+        });
+        setRecentAppointments(apps.slice(0, 5));
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch data based on role
-        if (user.role === 'admin') {
-          const docs = await api.get('/doctors');
-          const pats = await api.get('/patients');
-          const apps = await api.get('/appointments');
-          const depts = await api.get('/departments');
-          const bills = await api.get('/billing');
-
-          const totalEarnings = bills
-            .filter((b) => b.status === 'paid')
-            .reduce((sum, b) => sum + b.total, 0);
-
-          setStats({
-            doctors: docs.length,
-            patients: pats.length,
-            appointments: apps.length,
-            earnings: totalEarnings,
-            departments: depts.length,
-          });
-
-          // Show last 5 appointments
-          setRecentAppointments(apps.slice(0, 5));
-          setAdminLedger(bills);
-
-          // Fetch Analytics
-          const bAnalytics = await api.get('/billing/analytics');
-          const aAnalytics = await api.get('/appointments/analytics');
-          setBillingAnalytics(bAnalytics);
-          setAppointmentAnalytics(aAnalytics);
-        } else if (user.role === 'doctor') {
-          const apps = await api.get('/appointments');
-          const scripts = await api.get('/prescriptions');
-
-          // Filter unique patients for this doctor
-          const myPatients = new Set(apps.map((a) => a.patient?._id)).size;
-
-          setStats({
-            appointments: apps.length,
-            pendingAppointments: apps.filter((a) => a.status === 'pending').length,
-            prescriptions: scripts.length,
-            patients: myPatients,
-          });
-          setRecentAppointments(apps.slice(0, 5));
-
-          // Fetch Analytics
-          const aAnalytics = await api.get('/appointments/analytics');
-          setAppointmentAnalytics(aAnalytics);
-        } else if (user.role === 'patient') {
-          const apps = await api.get('/appointments');
-          const scripts = await api.get('/prescriptions');
-          const bills = await api.get('/billing');
-
-          const unpaidCount = bills.filter((b) => b.status === 'unpaid').length;
-
-          setStats({
-            appointments: apps.length,
-            prescriptions: scripts.length,
-            unpaidBills: unpaidCount,
-          });
-          setRecentAppointments(apps.slice(0, 5));
-        }
-      } catch (error) {
-        console.error('Error fetching dashboard stats:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (user) {
       fetchDashboardData();
     }
   }, [user]);
+
+  const handleCallNextPatient = async () => {
+    if (!myDoctorProfile) return;
+
+    // Find the next approved appointment for today
+    const today = new Date().toDateString();
+    const todayApps = recentAppointments.filter(
+      (app) =>
+        app.status === 'approved' &&
+        new Date(app.date).toDateString() === today
+    );
+
+    if (todayApps.length === 0) {
+      alert('No more approved appointments scheduled for today!');
+      return;
+    }
+
+    const nextApp = todayApps[0];
+    const nextTokenNum = nextApp.queuePosition || (myDoctorProfile.currentToken || 0) + 1;
+
+    try {
+      setLoading(true);
+      // Update appointment status to 'ongoing'
+      await api.put(`/appointments/${nextApp._id}/status`, { status: 'ongoing' });
+      // Update doctor's current token
+      await api.put(`/doctors/${myDoctorProfile._id}/queue`, { currentToken: nextTokenNum });
+
+      // Emit socket update
+      if (socket) {
+        socket.emit('update-queue', { doctorId: myDoctorProfile._id });
+      }
+
+      alert(`Called Patient: ${nextApp.patient?.user?.name || 'Patient'} (Token #${nextTokenNum})`);
+      fetchDashboardData();
+    } catch (err) {
+      alert(err.message || 'Failed to call next patient');
+      setLoading(false);
+    }
+  };
 
   // Staggered entry animations for Dashboard elements when loaded
   useEffect(() => {
@@ -330,32 +394,84 @@ const Dashboard = () => {
 
       {/* Doctor Stat Grid */}
       {user.role === 'doctor' && (
-        <div className="dashboard-grid">
-          <StatCard
-            title="My Appointments"
-            value={stats.appointments}
-            icon={<Calendar size={24} />}
-            colorClass="blue"
-          />
-          <StatCard
-            title="Pending Approval"
-            value={stats.pendingAppointments}
-            icon={<Activity size={24} />}
-            colorClass="warning"
-          />
-          <StatCard
-            title="Prescriptions Issued"
-            value={stats.prescriptions}
-            icon={<FileText size={24} />}
-            colorClass="teal"
-          />
-          <StatCard
-            title="Unique Patients"
-            value={stats.patients}
-            icon={<Users size={24} />}
-            colorClass="danger"
-          />
-        </div>
+        <>
+          <div className="dashboard-grid">
+            <StatCard
+              title="My Appointments"
+              value={stats.appointments}
+              icon={<Calendar size={24} />}
+              colorClass="blue"
+            />
+            <StatCard
+              title="Pending Approval"
+              value={stats.pendingAppointments}
+              icon={<Activity size={24} />}
+              colorClass="warning"
+            />
+            <StatCard
+              title="Prescriptions Issued"
+              value={stats.prescriptions}
+              icon={<FileText size={24} />}
+              colorClass="teal"
+            />
+            <StatCard
+              title="Unique Patients"
+              value={stats.patients}
+              icon={<Users size={24} />}
+              colorClass="danger"
+            />
+          </div>
+
+          {/* Live Queue Controller for Doctor */}
+          {myDoctorProfile && (
+            <div style={{
+              background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
+              borderRadius: 'var(--border-radius-lg)', padding: '2rem', marginTop: '2rem',
+              boxShadow: 'var(--shadow-md)', display: 'flex', justifyContent: 'space-between',
+              alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem'
+            }}>
+              <div>
+                <span style={{ fontSize: '0.85rem', color: 'var(--accent-teal)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  LIVE CLINIC QUEUE CONTROLLER
+                </span>
+                <h3 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '0.25rem 0 0.5rem 0', color: '#fff' }}>
+                  Now Serving Token: <span style={{ color: 'var(--accent-teal)' }}>#{myDoctorProfile.currentToken || 0}</span>
+                </h3>
+                {(() => {
+                  const today = new Date().toDateString();
+                  const nextPending = recentAppointments.find(
+                    (app) => app.status === 'approved' && new Date(app.date).toDateString() === today
+                  );
+                  if (nextPending) {
+                    return (
+                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
+                        Next Patient: <strong>{nextPending.patient?.user?.name}</strong> (Est. Token: #{nextPending.queuePosition || 'N/A'}, Time: {nextPending.timeSlot})
+                      </p>
+                    );
+                  }
+                  return (
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', margin: 0 }}>
+                      No more pending patients checked-in for today.
+                    </p>
+                  );
+                })()}
+              </div>
+              <div>
+                <button
+                  onClick={handleCallNextPatient}
+                  className="btn btn-teal"
+                  style={{
+                    padding: '0.75rem 2rem', fontWeight: 700,
+                    boxShadow: '0 4px 15px rgba(20, 184, 166, 0.25)'
+                  }}
+                  disabled={loading}
+                >
+                  Call Next Patient
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Patient Stat Grid */}

@@ -5,6 +5,7 @@ import {
   getDoctorById,
   updateDoctor,
   deleteDoctor,
+  updateDoctorQueue,
 } from '../controllers/doctorController.js';
 import { protect, authorize } from '../middleware/authMiddleware.js';
 
@@ -14,6 +15,8 @@ router
   .route('/')
   .post(protect, authorize('admin'), createDoctor)
   .get(getDoctors);
+
+router.route('/:id/queue').put(protect, updateDoctorQueue);
 
 router
   .route('/:id')

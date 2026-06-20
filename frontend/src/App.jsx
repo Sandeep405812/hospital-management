@@ -26,6 +26,10 @@ import Checkout from './pages/Checkout';
 import Reports from './pages/Reports';
 import Metrics from './pages/Metrics';
 import SymptomChecker from './pages/SymptomChecker';
+import Beds from './pages/Beds';
+import SurgerySchedule from './pages/SurgerySchedule';
+import WaitingRoom from './pages/WaitingRoom';
+import { LanguageProvider } from './context/LanguageContext';
 
 // Protected Route Guard
 const ProtectedRoute = ({ allowedRoles }) => {
@@ -316,8 +320,9 @@ function App() {
   }, []);
 
   return (
-    <AuthProvider>
-      <Router>
+    <LanguageProvider>
+      <AuthProvider>
+        <Router>
         <Routes>
           {/* Guest routes */}
           <Route element={<GuestRoute />}>
@@ -334,9 +339,15 @@ function App() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/prescriptions" element={<Prescriptions />} />
               <Route path="/departments" element={<Departments />} />
+              <Route path="/beds" element={<Beds />} />
 
-              {/* Admin & Patient only */}
-              <Route element={<ProtectedRoute allowedRoles={['admin', 'patient']} />}>
+              {/* Admin, Doctor & Receptionist only */}
+              <Route element={<ProtectedRoute allowedRoles={['admin', 'doctor', 'receptionist']} />}>
+                <Route path="/surgery-schedule" element={<SurgerySchedule />} />
+              </Route>
+
+              {/* Admin, Patient & Receptionist only */}
+              <Route element={<ProtectedRoute allowedRoles={['admin', 'patient', 'receptionist']} />}>
                 <Route path="/doctors" element={<Doctors />} />
                 <Route path="/billing" element={<Billing />} />
                 <Route path="/billing/:id/checkout" element={<Checkout />} />
@@ -349,18 +360,22 @@ function App() {
                 <Route path="/symptom-checker" element={<SymptomChecker />} />
               </Route>
 
-              {/* Admin & Doctor only */}
-              <Route element={<ProtectedRoute allowedRoles={['admin', 'doctor']} />}>
+              {/* Admin, Doctor & Receptionist only */}
+              <Route element={<ProtectedRoute allowedRoles={['admin', 'doctor', 'receptionist']} />}>
                 <Route path="/patients" element={<Patients />} />
               </Route>
             </Route>
           </Route>
 
+          {/* Public Waiting Room TV Screen */}
+          <Route path="/waiting-room" element={<WaitingRoom />} />
+
           {/* Fallback */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
-      </Router>
-    </AuthProvider>
+        </Router>
+      </AuthProvider>
+    </LanguageProvider>
   );
 }
 

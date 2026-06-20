@@ -9,6 +9,7 @@ const Patients = () => {
   const { user } = useAuth();
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Detail Modal State
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -91,6 +92,18 @@ const Patients = () => {
     }
   };
 
+  const filteredPatients = patients.filter((pat) => {
+    const name = pat.user?.name || '';
+    const email = pat.user?.email || '';
+    const bloodType = pat.bloodType || '';
+    const phone = pat.user?.phoneNumber || '';
+    
+    return name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           bloodType.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           phone.toLowerCase().includes(searchQuery.toLowerCase());
+  });
+
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading patients registry...</div>;
   }
@@ -104,12 +117,24 @@ const Patients = () => {
         </div>
       </div>
 
+      {/* Search Filter bar */}
+      <div style={{ marginBottom: '1.5rem', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--glass-border)', padding: '0.75rem', borderRadius: 'var(--border-radius)' }}>
+        <input
+          type="text"
+          className="form-input"
+          style={{ margin: 0, width: '100%' }}
+          placeholder="Search patients by name, email, phone or blood group..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </div>
+
       <div className="dashboard-section">
-        {patients.length === 0 ? (
-          <p style={{ color: 'var(--text-secondary)', padding: '1rem 0' }}>No patients registered yet.</p>
+        {filteredPatients.length === 0 ? (
+          <p style={{ color: 'var(--text-secondary)', padding: '1rem 0' }}>No matching patients registered.</p>
         ) : (
           <Table headers={['Patient Name', 'Blood Type', 'Date of Birth', 'Emergency Contact', 'Actions']}>
-            {patients.map((pat) => (
+            {filteredPatients.map((pat) => (
               <tr key={pat._id}>
                 <td>
                   <div style={{ fontWeight: 600, fontSize: '1.05rem' }}>{pat.user?.name}</div>

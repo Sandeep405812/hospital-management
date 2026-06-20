@@ -239,3 +239,32 @@ export const getAppointmentAnalytics = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// @desc    Get booked slots for a doctor on a specific date
+// @route   GET /api/appointments/booked-slots
+// @access  Private
+export const getBookedSlots = async (req, res) => {
+  const { doctorId, date } = req.query;
+
+  try {
+    if (!doctorId || !date) {
+      return res.status(400).json({ message: 'Doctor ID and Date are required' });
+    }
+
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const appointments = await Appointment.find({
+      doctor: doctorId,
+      date: { $gte: startOfDay, $lte: endOfDay },
+      status: { $in: ['pending', 'approved', 'ongoing'] },
+    }).select('timeSlot');
+
+    const bookedSlots = appointments.map((app) => app.timeSlot);
+    res.json(bookedSlots);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

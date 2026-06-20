@@ -4,10 +4,13 @@ import {
   getAppointments,
   updateAppointmentStatus,
   getAppointmentAnalytics,
+  getBookedSlots,
 } from '../controllers/appointmentController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+router.route('/booked-slots').get(protect, getBookedSlots);
 
 router
   .route('/')

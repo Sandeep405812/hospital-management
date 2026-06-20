@@ -65,17 +65,13 @@ const Checkout = () => {
     setCardForm({ ...cardForm, [e.target.name]: e.target.value });
   };
 
-  const processPayment = async (method) => {
-    try {
-      setLoading(true);
-      await api.put(`/billing/${id}/pay`, { paymentMethod: method });
-      alert('Transaction Successful! Your invoice has been cleared.');
-      navigate('/billing');
-    } catch (err) {
-      alert(err.message || 'Payment processing failed');
-      setLoading(false);
-    }
-  };
+  // Interactive payment gateway simulator states
+  const [showOtpOverlay, setShowOtpOverlay] = useState(false);
+  const [otpValue, setOtpValue] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [paymentMethodPending, setPaymentMethodPending] = useState('');
+  const [processingStatus, setProcessingStatus] = useState(''); // authenticating, otp, upi_wait, netbanking_login, verifying, success
+  const [netbankingForm, setNetbankingForm] = useState({ username: '', password: '' });
 
   const handlePay = (e) => {
     e.preventDefault();
@@ -84,7 +80,64 @@ const Checkout = () => {
       upi: 'UPI',
       netbanking: 'NetBanking',
     };
-    processPayment(methodMap[activeTab]);
+    const method = methodMap[activeTab];
+    setPaymentMethodPending(method);
+    setOtpValue('');
+    setOtpError('');
+    setNetbankingForm({ username: '', password: '' });
+    setShowOtpOverlay(true);
+    setProcessingStatus('authenticating');
+
+    setTimeout(() => {
+      if (method === 'Card') {
+        setProcessingStatus('otp');
+      } else if (method === 'UPI') {
+        setProcessingStatus('upi_wait');
+      } else {
+        setProcessingStatus('netbanking_login');
+      }
+    }, 1200);
+  };
+
+  const handleVerifyAndPay = async (e) => {
+    if (e) e.preventDefault();
+    
+    if (processingStatus === 'otp' && otpValue.length !== 6) {
+      setOtpError('Please enter a valid 6-digit OTP code');
+      return;
+    }
+    
+    if (processingStatus === 'netbanking_login' && (!netbankingForm.username || !netbankingForm.password)) {
+      setOtpError('Please enter your NetBanking username and password');
+      return;
+    }
+
+    setOtpError('');
+    setProcessingStatus('verifying');
+
+    try {
+      // Simulate verification latency
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Update DB billing status
+      await api.put(`/billing/${id}/pay`, { paymentMethod: paymentMethodPending });
+      
+      setProcessingStatus('success');
+      setTimeout(() => {
+        setShowOtpOverlay(false);
+        navigate('/billing');
+      }, 1500);
+    } catch (err) {
+      alert(err.message || 'Payment processing failed');
+      // Reset back to previous form on error
+      if (paymentMethodPending === 'Card') {
+        setProcessingStatus('otp');
+      } else if (paymentMethodPending === 'UPI') {
+        setProcessingStatus('upi_wait');
+      } else {
+        setProcessingStatus('netbanking_login');
+      }
+    }
   };
 
   const formatTime = (seconds) => {
@@ -378,6 +431,218 @@ const Checkout = () => {
           </div>
         </div>
       </div>
+      </div>
+
+      {/* Stripe/Razorpay Mock Payment Gateway Modal Overlay */}
+      {showOtpOverlay && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(9, 13, 22, 0.9)', backdropFilter: 'blur(10px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999
+        }}>
+          <div style={{
+            background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)',
+            borderRadius: 'var(--border-radius-lg)', padding: '2.5rem',
+            maxWidth: '460px', width: '90%', textAlign: 'center',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.6)'
+          }}>
+            {/* 1. AUTHENTICATING STATE */}
+            {processingStatus === 'authenticating' && (
+              <div style={{ padding: '2rem 0' }}>
+                <div style={{
+                  width: '60px', height: '60px', border: '4px solid rgba(59, 130, 246, 0.1)',
+                  borderTop: '4px solid var(--accent-blue)', borderRadius: '50%',
+                  margin: '0 auto 1.5rem', animation: 'spin 1s linear infinite'
+                }} />
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', marginBottom: '0.5rem' }}>
+                  Contacting Bank Servers
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  Initiating secure 3D transaction gateway handshake...
+                </p>
+              </div>
+            )}
+
+            {/* 2. CARD OTP STATE */}
+            {processingStatus === 'otp' && (
+              <form onSubmit={handleVerifyAndPay}>
+                <div style={{
+                  width: '50px', height: '50px', borderRadius: '50%',
+                  backgroundColor: 'rgba(59, 130, 246, 0.1)', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', color: 'var(--accent-blue)',
+                  margin: '0 auto 1.25rem'
+                }}>
+                  <ShieldCheck size={28} />
+                </div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', marginBottom: '0.5rem' }}>
+                  3D Secure Verification
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                  A mock 6-digit OTP code has been sent to +91 ******89. Enter <strong>123456</strong> or any code.
+                </p>
+
+                <div className="form-group">
+                  <input
+                    type="text"
+                    maxLength="6"
+                    className="form-input"
+                    style={{ textAlign: 'center', fontSize: '1.5rem', letterSpacing: '8px', fontWeight: 700 }}
+                    placeholder="••••••"
+                    value={otpValue}
+                    onChange={(e) => setOtpValue(e.target.value.replace(/\D/g, ''))}
+                    required
+                  />
+                  {otpError && (
+                    <p style={{ color: 'var(--danger)', fontSize: '0.8rem', marginTop: '0.5rem' }}>{otpError}</p>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                  <button type="submit" className="btn btn-primary btn-full">Verify & Pay ₹{bill.total}</button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-full"
+                    onClick={() => setShowOtpOverlay(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* 3. UPI AWAIT STATE */}
+            {processingStatus === 'upi_wait' && (
+              <div>
+                <div style={{
+                  width: '60px', height: '60px', border: '4px solid rgba(20, 184, 166, 0.1)',
+                  borderTop: '4px solid var(--accent-teal)', borderRadius: '50%',
+                  margin: '0 auto 1.5rem', animation: 'spin 1.2s linear infinite'
+                }} />
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', marginBottom: '0.5rem' }}>
+                  Awaiting UPI Authorization
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem', lineHeight: '1.5' }}>
+                  Please open your smartphone UPI App (GPay/PhonePe) connected to your account and approve the request for <strong>₹{bill.total}</strong>.
+                </p>
+
+                <button
+                  type="button"
+                  className="btn btn-teal btn-full"
+                  style={{ marginBottom: '1rem' }}
+                  onClick={() => handleVerifyAndPay()}
+                >
+                  Simulate Approve Payment
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-full"
+                  onClick={() => setShowOtpOverlay(false)}
+                >
+                  Cancel Transaction
+                </button>
+              </div>
+            )}
+
+            {/* 4. NETBANKING LOGIN STATE */}
+            {processingStatus === 'netbanking_login' && (
+              <form onSubmit={handleVerifyAndPay}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', marginBottom: '0.5rem' }}>
+                  Secure NetBanking Portal
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                  Log in to your selected bank account securely to release funds of ₹{bill.total}.
+                </p>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ textAlign: 'left' }}>User ID / Customer ID</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="Enter Username"
+                    value={netbankingForm.username}
+                    onChange={(e) => setNetbankingForm({ ...netbankingForm, username: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label" style={{ textAlign: 'left' }}>IPIN / Password</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    placeholder="••••••••"
+                    value={netbankingForm.password}
+                    onChange={(e) => setNetbankingForm({ ...netbankingForm, password: e.target.value })}
+                    required
+                  />
+                  {otpError && (
+                    <p style={{ color: 'var(--danger)', fontSize: '0.8rem', marginTop: '0.5rem' }}>{otpError}</p>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                  <button type="submit" className="btn btn-primary btn-full">Authenticate Login</button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-full"
+                    onClick={() => setShowOtpOverlay(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {/* 5. VERIFYING STATE */}
+            {processingStatus === 'verifying' && (
+              <div style={{ padding: '2rem 0' }}>
+                <div style={{
+                  width: '60px', height: '60px', border: '4px solid rgba(16, 185, 129, 0.1)',
+                  borderTop: '4px solid var(--success)', borderRadius: '50%',
+                  margin: '0 auto 1.5rem', animation: 'spin 0.8s linear infinite'
+                }} />
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', marginBottom: '0.5rem' }}>
+                  Verifying Authorization
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  Validating OTP verification token and settling transactions...
+                </p>
+              </div>
+            )}
+
+            {/* 6. SUCCESS STATE */}
+            {processingStatus === 'success' && (
+              <div style={{ padding: '2rem 0' }}>
+                <div style={{
+                  width: '60px',
+                  height: '60px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--success)',
+                  margin: '0 auto 1.5rem',
+                  animation: 'pulse 1s infinite'
+                }}>
+                  <CheckCircle size={36} />
+                </div>
+                <h3 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--success)', marginBottom: '0.5rem' }}>
+                  Payment Approved!
+                </h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  Your invoice has been cleared successfully. Redirecting you...
+                </p>
+              </div>
+            )}
+          </div>
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      )}
     </div>
   );
 };

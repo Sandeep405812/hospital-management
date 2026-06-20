@@ -18,6 +18,8 @@ import billingRoutes from './routes/billingRoutes.js';
 import reportRoutes from './routes/reportRoutes.js';
 import metricRoutes from './routes/metricRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
+import bedRoutes from './routes/bedRoutes.js';
+import surgeryRoutes from './routes/surgeryRoutes.js';
 
 // Model imports for seeding
 import User from './models/User.js';
@@ -80,6 +82,12 @@ io.on('connection', (socket) => {
   // Patient rejects the call (notifies the Doctor in the CallRoom)
   socket.on('reject-call', ({ roomId }) => {
     socket.to(roomId).emit('call-rejected');
+  });
+
+  // Queue updates
+  socket.on('update-queue', ({ doctorId }) => {
+    console.log(`Queue update triggered for doctor ${doctorId}`);
+    io.emit('queue-updated', { doctorId });
   });
 
   // User joins the virtual consultation room corresponding to their Appointment ID
@@ -145,6 +153,8 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/metrics', metricRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/beds', bedRoutes);
+app.use('/api/surgeries', surgeryRoutes);
 
 app.get('/', (req, res) => {
   res.send('Hospital Management System API (with Telemedicine & Uploads) is running...');
@@ -170,6 +180,27 @@ const seedAdmin = async () => {
   }
 };
 seedAdmin();
+
+// Seed default receptionist if none exists
+const seedReceptionist = async () => {
+  try {
+    const receptionistCount = await User.countDocuments({ role: 'receptionist' });
+    if (receptionistCount === 0) {
+      await User.create({
+        name: 'System Receptionist',
+        email: 'receptionist@hospital.com',
+        password: 'receptionistpassword123',
+        role: 'receptionist',
+        phoneNumber: '0987654321',
+        gender: 'Female',
+      });
+      console.log('Seeded default receptionist user: receptionist@hospital.com / receptionistpassword123');
+    }
+  } catch (error) {
+    console.error('Error seeding receptionist user:', error.message);
+  }
+};
+seedReceptionist();
 
 // Error Handling Middlewares
 app.use(notFound);

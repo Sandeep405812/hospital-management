@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import {
   LayoutDashboard,
   User,
@@ -19,6 +20,7 @@ import {
 
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'dark');
 
   useEffect(() => {
@@ -31,69 +33,81 @@ const Sidebar = ({ isOpen, onClose }) => {
   const links = [
     {
       to: '/dashboard',
-      label: 'Dashboard',
+      label: t('dashboard'),
       icon: <LayoutDashboard size={20} />,
-      roles: ['admin', 'doctor', 'patient'],
+      roles: ['admin', 'doctor', 'patient', 'receptionist'],
     },
     {
       to: '/appointments',
-      label: 'Appointments',
+      label: t('appointments'),
       icon: <Calendar size={20} />,
-      roles: ['admin', 'doctor', 'patient'],
+      roles: ['admin', 'doctor', 'patient', 'receptionist'],
     },
     {
       to: '/symptom-checker',
-      label: 'Symptom Checker',
+      label: t('symptomChecker'),
       icon: <Heart size={20} />,
       roles: ['patient'],
     },
     {
       to: '/metrics',
-      label: 'Health Tracker',
+      label: t('healthTracker'),
       icon: <Activity size={20} />,
       roles: ['patient'],
     },
     {
       to: '/doctors',
-      label: 'Doctors',
+      label: t('doctors'),
       icon: <Stethoscope size={20} />,
-      roles: ['admin', 'patient'],
+      roles: ['admin', 'patient', 'receptionist'],
     },
     {
       to: '/patients',
-      label: 'Patients',
+      label: t('patients'),
       icon: <Users size={20} />,
-      roles: ['admin', 'doctor'],
+      roles: ['admin', 'doctor', 'receptionist'],
+    },
+    {
+      to: '/beds',
+      label: t('beds'),
+      icon: <Layers size={20} />,
+      roles: ['admin', 'doctor', 'patient', 'receptionist'],
+    },
+    {
+      to: '/surgery-schedule',
+      label: t('surgeries'),
+      icon: <Calendar size={20} />,
+      roles: ['admin', 'doctor', 'receptionist'],
     },
     {
       to: '/prescriptions',
-      label: 'Prescriptions',
+      label: t('prescriptions'),
       icon: <FileText size={20} />,
       roles: ['admin', 'doctor', 'patient'],
     },
     {
       to: '/billing',
-      label: 'Billing / Invoices',
+      label: t('billingInvoices'),
       icon: <CreditCard size={20} />,
-      roles: ['admin', 'patient'],
+      roles: ['admin', 'patient', 'receptionist'],
     },
     {
       to: '/reports',
-      label: 'Medical Reports',
+      label: t('medicalReports'),
       icon: <FolderOpen size={20} />,
       roles: ['patient'],
     },
     {
       to: '/departments',
-      label: 'Departments',
+      label: t('departments'),
       icon: <Layers size={20} />,
-      roles: ['admin', 'doctor', 'patient'],
+      roles: ['admin', 'doctor', 'patient', 'receptionist'],
     },
     {
       to: '/profile',
-      label: 'My Profile',
+      label: t('myProfile'),
       icon: <User size={20} />,
-      roles: ['admin', 'doctor', 'patient'],
+      roles: ['admin', 'doctor', 'patient', 'receptionist'],
     },
   ];
 
@@ -222,7 +236,7 @@ const Sidebar = ({ isOpen, onClose }) => {
 
       <button onClick={() => { onClose(); logout(); }} style={logoutButtonStyle}>
         <LogOut size={20} />
-        <span>Logout</span>
+        <span>{t('logout')}</span>
       </button>
     </div>
   );

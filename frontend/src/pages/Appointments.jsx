@@ -14,15 +14,81 @@ const Appointments = () => {
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Search & Filters State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [dateFilter, setDateFilter] = useState('');
+
   // Booking Modal State
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [bookingForm, setBookingForm] = useState({
     doctorId: '',
     departmentId: '',
     date: '',
-    timeSlot: '09:00 - 10:00',
+    timeSlot: '',
     symptoms: '',
   });
+
+  // Doctor Availability slots state
+  const [bookedSlots, setBookedSlots] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
+  // Fetch booked slots for selected doctor and date
+  useEffect(() => {
+    const fetchBookedSlots = async () => {
+      if (!bookingForm.doctorId || !bookingForm.date) {
+        setBookedSlots([]);
+        return;
+      }
+      try {
+        setLoadingSlots(true);
+        const data = await api.get(
+          `/appointments/booked-slots?doctorId=${bookingForm.doctorId}&date=${bookingForm.date}`
+        );
+        setBookedSlots(data);
+      } catch (err) {
+        console.error('Failed to load booked slots', err);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+    fetchBookedSlots();
+  }, [bookingForm.doctorId, bookingForm.date]);
+
+  // Get available slots
+  const getAvailableSlots = () => {
+    if (!bookingForm.doctorId || !bookingForm.date) return [];
+    const selectedDoctorObj = doctors.find((d) => d._id === bookingForm.doctorId);
+    if (!selectedDoctorObj) return [];
+
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dateObj = new Date(bookingForm.date);
+    const dayName = daysOfWeek[dateObj.getDay()];
+
+    // Map availability or schedule
+    let weeklySlots = [];
+    if (selectedDoctorObj.availability) {
+      // Map check (Mongoose maps are plain objects in JSON response)
+      weeklySlots = selectedDoctorObj.availability[dayName] || [];
+    } else {
+      weeklySlots = selectedDoctorObj.schedule || [];
+    }
+
+    return weeklySlots.filter((slot) => !bookedSlots.includes(slot));
+  };
+
+  const availableSlots = getAvailableSlots();
+
+  // Keep selected slot in sync
+  useEffect(() => {
+    if (availableSlots.length > 0) {
+      if (!availableSlots.includes(bookingForm.timeSlot)) {
+        setBookingForm((prev) => ({ ...prev, timeSlot: availableSlots[0] }));
+      }
+    } else {
+      setBookingForm((prev) => ({ ...prev, timeSlot: '' }));
+    }
+  }, [bookingForm.doctorId, bookingForm.date, bookedSlots]);
 
   useEffect(() => {
     if (location.state?.openBooking) {
@@ -85,7 +151,7 @@ const Appointments = () => {
         doctorId: '',
         departmentId: '',
         date: '',
-        timeSlot: '09:00 - 10:00',
+        timeSlot: '',
         symptoms: '',
       });
       fetchAppointments();
@@ -141,6 +207,21 @@ const Appointments = () => {
     }
   };
 
+  const filteredAppointments = appointments.filter((app) => {
+    const doctorName = app.doctor?.user?.name || '';
+    const patientName = app.patient?.user?.name || '';
+    const symptoms = app.symptoms || '';
+    const matchesSearch = 
+      doctorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      symptoms.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesStatus = statusFilter === 'All' || app.status === statusFilter;
+    const matchesDate = !dateFilter || new Date(app.date).toDateString() === new Date(dateFilter).toDateString();
+
+    return matchesSearch && matchesStatus && matchesDate;
+  });
+
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading appointments...</div>;
   }
@@ -160,8 +241,62 @@ const Appointments = () => {
         )}
       </div>
 
+      {/* Search & Filter Controls */}
+      <div style={{
+        display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap',
+        backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--glass-border)',
+        padding: '1rem', borderRadius: 'var(--border-radius)', alignItems: 'center'
+      }}>
+        <div style={{ flex: 1, minWidth: '200px' }}>
+          <input
+            type="text"
+            className="form-input"
+            style={{ margin: 0, width: '100%' }}
+            placeholder="Search by name or symptoms..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+        <div style={{ width: '180px' }}>
+          <select
+            className="form-select"
+            style={{ margin: 0 }}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="All">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="ongoing">Ongoing</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+        <div style={{ width: '180px' }}>
+          <input
+            type="date"
+            className="form-input"
+            style={{ margin: 0 }}
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+          />
+        </div>
+        {(searchQuery || statusFilter !== 'All' || dateFilter) && (
+          <button
+            className="btn btn-secondary btn-sm"
+            onClick={() => {
+              setSearchQuery('');
+              setStatusFilter('All');
+              setDateFilter('');
+            }}
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
       <div className="dashboard-section">
-        {appointments.length === 0 ? (
+        {filteredAppointments.length === 0 ? (
           <p style={{ color: 'var(--text-secondary)', padding: '1rem 0' }}>No appointments booked yet.</p>
         ) : (
           <Table
@@ -176,7 +311,7 @@ const Appointments = () => {
               'Actions',
             ]}
           >
-            {appointments.map((app) => (
+            {filteredAppointments.map((app) => (
               <tr key={app._id}>
                 {user.role === 'patient' ? (
                   <td>
@@ -349,13 +484,21 @@ const Appointments = () => {
                 value={bookingForm.timeSlot}
                 onChange={(e) => setBookingForm({ ...bookingForm, timeSlot: e.target.value })}
                 required
+                disabled={!bookingForm.doctorId || !bookingForm.date || availableSlots.length === 0 || loadingSlots}
               >
-                <option value="09:00 - 10:00">09:00 - 10:00 AM</option>
-                <option value="10:00 - 11:00">10:00 - 11:00 AM</option>
-                <option value="11:00 - 12:00">11:00 - 12:00 PM</option>
-                <option value="14:00 - 15:00">02:00 - 03:00 PM</option>
-                <option value="15:00 - 16:00">03:00 - 04:00 PM</option>
-                <option value="16:00 - 17:00">04:00 - 05:00 PM</option>
+                {!bookingForm.doctorId || !bookingForm.date ? (
+                  <option value="">-- Choose Doctor & Date First --</option>
+                ) : loadingSlots ? (
+                  <option value="">Checking slots availability...</option>
+                ) : availableSlots.length === 0 ? (
+                  <option value="">No slots available for this day</option>
+                ) : (
+                  availableSlots.map((slot) => (
+                    <option key={slot} value={slot}>
+                      {slot}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
           </div>

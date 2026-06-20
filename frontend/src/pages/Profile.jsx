@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { api, BACKEND_URL } from '../utils/api';
+import { Calendar, FileText, CreditCard, FolderOpen, User as UserIcon, Activity } from 'lucide-react';
 
 const Profile = () => {
   const { user, loadUser } = useAuth();
@@ -13,6 +14,36 @@ const Profile = () => {
     ifscCode: ''
   });
   const [settingsLoading, setSettingsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('profile'); // profile, timeline
+  const [timeline, setTimeline] = useState([]);
+
+  useEffect(() => {
+    if (user && user.role === 'patient') {
+      const fetchTimeline = async () => {
+        try {
+          const [apps, scripts, bills, reps] = await Promise.all([
+            api.get('/appointments'),
+            api.get('/prescriptions'),
+            api.get('/billing'),
+            api.get('/reports')
+          ]);
+
+          const items = [
+            ...apps.map(a => ({ date: a.date, type: 'appointment', title: 'Doctor Consultation', desc: `Consulted Dr. ${a.doctor?.user?.name || 'Physician'} (${a.symptoms})`, badge: a.status })),
+            ...scripts.map(p => ({ date: p.date, type: 'prescription', title: 'Rx Prescription Issued', desc: `Medicines: ${p.medicines?.map(m => m.name).join(', ')}`, notes: p.notes })),
+            ...bills.map(b => ({ date: b.createdAt, type: 'billing', title: 'Billing Statement', desc: `Invoice Total: ₹${b.total}`, badge: b.status })),
+            ...reps.map(r => ({ date: r.date, type: 'report', title: 'Lab Report Uploaded', desc: r.title }))
+          ];
+
+          items.sort((a, b) => new Date(b.date) - new Date(a.date));
+          setTimeline(items);
+        } catch (err) {
+          console.error('Failed to compile timeline logs', err);
+        }
+      };
+      fetchTimeline();
+    }
+  }, [user]);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -169,8 +200,27 @@ const Profile = () => {
         </div>
       </div>
 
+      {/* Patient Timeline / Profile Tab Switcher */}
+      {user.role === 'patient' && (
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', maxWidth: '800px' }}>
+          <button
+            onClick={() => setActiveTab('profile')}
+            className={`btn ${activeTab === 'profile' ? 'btn-teal' : 'btn-secondary'} btn-sm`}
+          >
+            Profile Settings
+          </button>
+          <button
+            onClick={() => setActiveTab('timeline')}
+            className={`btn ${activeTab === 'timeline' ? 'btn-teal' : 'btn-secondary'} btn-sm`}
+          >
+            Medical Timeline
+          </button>
+        </div>
+      )}
+
       <div className="dashboard-section" style={{ maxWidth: '800px' }}>
-        <form onSubmit={handleSubmit}>
+        {activeTab === 'profile' ? (
+          <form onSubmit={handleSubmit}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.75rem' }}>
             <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-blue)' }}>Account Specifications</h3>
             {user.role !== 'admin' && (
@@ -411,6 +461,38 @@ const Profile = () => {
             </button>
           )}
         </form>
+        ) : (
+          /* Timeline view content */
+          <div>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-teal)', marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.75rem' }}>
+              My Medical Journey Timeline
+            </h3>
+            {timeline.length === 0 ? (
+              <p style={{ color: 'var(--text-secondary)' }}>No history logged yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative', paddingLeft: '1.5rem', borderLeft: '2px dashed var(--glass-border)', marginLeft: '1rem' }}>
+                {timeline.map((item, index) => (
+                  <div key={index} style={{ position: 'relative', marginBottom: '0.5rem' }}>
+                    {/* Timeline bullet dot */}
+                    <div style={{
+                      position: 'absolute', left: '-31px', top: '4px',
+                      width: '12px', height: '12px', borderRadius: '50%',
+                      backgroundColor: item.type === 'appointment' ? 'var(--accent-blue)' : item.type === 'prescription' ? 'var(--accent-teal)' : item.type === 'billing' ? 'var(--warning)' : 'var(--success)',
+                      border: '3px solid #0f172a'
+                    }} />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>
+                      {new Date(item.date).toLocaleDateString()}
+                    </span>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: '0.15rem 0', color: '#fff' }}>{item.title}</h4>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>{item.desc}</p>
+                    {item.notes && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: '0.25rem 0 0 0' }}>Advice: {item.notes}</p>}
+                    {item.badge && <span className={`badge badge-${item.badge}`} style={{ marginTop: '0.4rem' }}>{item.badge}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {user.role === 'admin' && (
