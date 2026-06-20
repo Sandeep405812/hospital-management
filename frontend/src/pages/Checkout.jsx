@@ -430,8 +430,6 @@ const Checkout = () => {
             <span>Encrypted with bank-grade 256-bit SSL connection.</span>
           </div>
         </div>
-      </div>
-      </div>
 
       {/* Stripe/Razorpay Mock Payment Gateway Modal Overlay */}
       {showOtpOverlay && (
