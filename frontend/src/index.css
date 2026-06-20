@@ -665,3 +665,8 @@ button, input, select, textarea {
   align-items: center;
   gap: 0.5rem;
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
