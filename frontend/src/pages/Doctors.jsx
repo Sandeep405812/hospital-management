@@ -26,6 +26,13 @@ const Doctors = () => {
     qualification: '',
   });
 
+  // Doctor Shift Roster Modal State (Admin only)
+  const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
+  const [selectedDoctorForRoster, setSelectedDoctorForRoster] = useState(null);
+  const [rosterForm, setRosterForm] = useState({
+    shift: 'Morning (09:00 - 14:00)'
+  });
+
   const fetchDoctors = async () => {
     try {
       const data = await api.get('/doctors');
@@ -77,15 +84,25 @@ const Doctors = () => {
     }
   };
 
-  const handleDeleteDoctor = async (id) => {
-    if (window.confirm('Are you sure you want to delete this doctor? This will also delete their login account.')) {
-      try {
-        await api.delete(`/doctors/${id}`);
-        fetchDoctors();
-        alert('Doctor removed successfully');
-      } catch (error) {
-        alert(error.message || 'Delete failed');
-      }
+  const handleOpenRoster = (doctor) => {
+    setSelectedDoctorForRoster(doctor);
+    setRosterForm({
+      shift: doctor.schedule?.join(', ') || 'Morning (09:00 - 14:00)'
+    });
+    setIsRosterModalOpen(true);
+  };
+
+  const handleSaveRoster = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put(`/doctors/${selectedDoctorForRoster._id}`, {
+        schedule: [rosterForm.shift]
+      });
+      setIsRosterModalOpen(false);
+      fetchDoctors();
+      alert('Doctor shift roster updated successfully!');
+    } catch (err) {
+      alert(err.message || 'Failed to update roster');
     }
   };
 
@@ -132,13 +149,30 @@ const Doctors = () => {
                 </td>
                 <td>
                   {user.role === 'admin' && (
-                    <button
-                      className="btn btn-danger btn-sm"
-                      style={{ padding: '0.35rem' }}
-                      onClick={() => handleDeleteDoctor(doc._id)}
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ padding: '0.35rem' }}
+                        onClick={() => handleOpenRoster(doc)}
+                        title="Shift Roster"
+                      >
+                        <Clock size={16} />
+                      </button>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        style={{ padding: '0.35rem' }}
+                        onClick={() => {
+                          if (window.confirm('Are you sure you want to delete this doctor? This will also delete their login account.')) {
+                            api.delete(`/doctors/${doc._id}`).then(() => {
+                              fetchDoctors();
+                              alert('Doctor removed');
+                            });
+                          }
+                        }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>
@@ -287,6 +321,35 @@ const Doctors = () => {
             Register Doctor Account
           </button>
         </form>
+      </Modal>
+
+      {/* Manage Shift Roster Modal (Admin-only) */}
+      <Modal isOpen={isRosterModalOpen} onClose={() => setIsRosterModalOpen(false)} title="Manage Doctor Shift Roster">
+        {selectedDoctorForRoster && (
+          <form onSubmit={handleSaveRoster}>
+            <div style={{ marginBottom: '1.25rem', fontSize: '0.92rem' }}>
+              Assign shift timetable duty roster for <strong>{selectedDoctorForRoster.user?.name}</strong>.
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Duty Shift Timings *</label>
+              <select
+                className="form-select"
+                value={rosterForm.shift}
+                onChange={(e) => setRosterForm({ ...rosterForm, shift: e.target.value })}
+                required
+              >
+                <option value="Morning (09:00 - 14:00)">Morning Duty (09:00 AM - 02:00 PM)</option>
+                <option value="Evening (14:00 - 19:00)">Evening Duty (02:00 PM - 07:00 PM)</option>
+                <option value="Night Duty (19:00 - 08:00)">Night Duty (07:00 PM - 08:00 AM)</option>
+              </select>
+            </div>
+
+            <button type="submit" className="btn btn-teal btn-full" style={{ marginTop: '1.5rem' }}>
+              Confirm Roster Allocation
+            </button>
+          </form>
+        )}
       </Modal>
     </div>
   );

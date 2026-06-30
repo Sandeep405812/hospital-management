@@ -138,9 +138,22 @@ const Navbar = ({ title, onMenuClick }) => {
       </button>
 
       {/* Title & Breadcrumbs */}
-      <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }} className="navbar-title-container">
-        <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#fff', lineHeight: 1.2 }}>{title || 'AS HOSPITAL'}</div>
-        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>{getBreadcrumbs()}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexGrow: 1 }} className="navbar-title-container">
+        <div style={{
+          width: '38px', height: '38px', borderRadius: '8px',
+          backgroundColor: 'rgba(13, 148, 136, 0.1)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(13, 148, 136, 0.2)',
+          color: 'var(--accent-teal)'
+        }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 14c1.66 0 3-1.34 3-3V6c0-1.66-1.34-3-3-3H5C3.34 3 2 4.34 2 6v5c0 1.66 1.34 3 3 3h14Z"/>
+            <path d="M12 3v14M8 10h8"/>
+          </svg>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--text-primary)', lineHeight: 1.2 }}>{title || 'CareHMS'}</div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>{getBreadcrumbs()}</div>
+        </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>

@@ -427,8 +427,12 @@ const Billing = () => {
                     <td style={{ textAlign: 'right' }}>₹{selectedBill.amount}</td>
                   </tr>
                   <tr>
-                    <td style={{ padding: '0.5rem 0', color: 'var(--text-secondary)' }}>GST (18%)</td>
-                    <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>₹{selectedBill.tax}</td>
+                    <td style={{ padding: '0.25rem 0', color: 'var(--text-secondary)' }}>Central GST (9%)</td>
+                    <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>₹{(selectedBill.tax / 2).toFixed(2)}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                    <td style={{ padding: '0.25rem 0', color: 'var(--text-secondary)' }}>State GST (9%)</td>
+                    <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>₹{(selectedBill.tax / 2).toFixed(2)}</td>
                   </tr>
                   <tr style={{ borderTop: '2px solid var(--glass-border)', fontWeight: 700 }}>
                     <td style={{ padding: '0.75rem 0', fontSize: '1.1rem' }}>Total Amount Paid</td>

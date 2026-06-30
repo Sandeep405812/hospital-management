@@ -5,6 +5,7 @@ import { api } from '../utils/api';
 import Table from '../components/Table';
 import Modal from '../components/Modal';
 import { Calendar, Plus, Check, X, FileText, Video } from 'lucide-react';
+import { sendMockWhatsapp } from '../utils/whatsapp';
 
 const Appointments = () => {
   const { user } = useAuth();
@@ -54,41 +55,6 @@ const Appointments = () => {
     };
     fetchBookedSlots();
   }, [bookingForm.doctorId, bookingForm.date]);
-
-  // Get available slots
-  const getAvailableSlots = () => {
-    if (!bookingForm.doctorId || !bookingForm.date) return [];
-    const selectedDoctorObj = doctors.find((d) => d._id === bookingForm.doctorId);
-    if (!selectedDoctorObj) return [];
-
-    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const dateObj = new Date(bookingForm.date);
-    const dayName = daysOfWeek[dateObj.getDay()];
-
-    // Map availability or schedule
-    let weeklySlots = [];
-    if (selectedDoctorObj.availability) {
-      // Map check (Mongoose maps are plain objects in JSON response)
-      weeklySlots = selectedDoctorObj.availability[dayName] || [];
-    } else {
-      weeklySlots = selectedDoctorObj.schedule || [];
-    }
-
-    return weeklySlots.filter((slot) => !bookedSlots.includes(slot));
-  };
-
-  const availableSlots = getAvailableSlots();
-
-  // Keep selected slot in sync
-  useEffect(() => {
-    if (availableSlots.length > 0) {
-      if (!availableSlots.includes(bookingForm.timeSlot)) {
-        setBookingForm((prev) => ({ ...prev, timeSlot: availableSlots[0] }));
-      }
-    } else {
-      setBookingForm((prev) => ({ ...prev, timeSlot: '' }));
-    }
-  }, [bookingForm.doctorId, bookingForm.date, bookedSlots]);
 
   useEffect(() => {
     if (location.state?.openBooking) {
@@ -144,6 +110,10 @@ const Appointments = () => {
   // Handle booking form submission
   const handleBookAppointment = async (e) => {
     e.preventDefault();
+    if (!bookingForm.date || !bookingForm.timeSlot) {
+      alert('Please select a visual date and time slot from the weekly timetable!');
+      return;
+    }
     try {
       await api.post('/appointments', bookingForm);
       setIsBookModalOpen(false);
@@ -155,6 +125,7 @@ const Appointments = () => {
         symptoms: '',
       });
       fetchAppointments();
+      sendMockWhatsapp(`✅ *[AS HOSPITAL]* New Appointment Request!\nDear Patient, we have received your booking request for a consultation. Status: PENDING approval. Check details at http://localhost:5173/appointments`);
       alert('Appointment booked successfully!');
     } catch (error) {
       alert(error.message || 'Booking failed');
@@ -164,8 +135,18 @@ const Appointments = () => {
   // Status updates (Doctor/Admin)
   const handleStatusChange = async (id, status) => {
     try {
+      const app = appointments.find((a) => a._id === id);
       await api.put(`/appointments/${id}/status`, { status });
       fetchAppointments();
+
+      if (app) {
+        const docName = app.doctor?.user?.name || 'Doctor';
+        if (status === 'approved') {
+          sendMockWhatsapp(`📅 *[AS HOSPITAL]* Appointment Approved!\nYour consultation with Dr. ${docName} on ${new Date(app.date).toLocaleDateString()} at ${app.timeSlot} is confirmed.\nJoin call room here: http://localhost:5173/appointments/${app._id}/call`);
+        } else if (status === 'cancelled') {
+          sendMockWhatsapp(`❌ *[AS HOSPITAL]* Appointment Cancelled.\nYour appointment with Dr. ${docName} has been cancelled. Please reschedule at http://localhost:5173/appointments`);
+        }
+      }
     } catch (error) {
       alert(error.message || 'Failed to update status');
     }
@@ -221,6 +202,91 @@ const Appointments = () => {
 
     return matchesSearch && matchesStatus && matchesDate;
   });
+
+  // Timetable grid layout scheduler
+  const renderWeeklyTimetable = () => {
+    if (!bookingForm.doctorId) return null;
+    const selectedDocObj = doctors.find((d) => d._id === bookingForm.doctorId);
+    if (!selectedDocObj) return null;
+
+    const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dates = [];
+
+    // Next 5 days
+    for (let i = 0; i < 5; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      dates.push({
+        isoString: d.toISOString().split('T')[0],
+        dateLabel: `${d.getMonth() + 1}/${d.getDate()}`,
+        dayName: weekdays[d.getDay()]
+      });
+    }
+
+    const slotsTemplate = ['09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM'];
+
+    return (
+      <div style={{ marginTop: '1.25rem', marginBottom: '1.25rem' }}>
+        <label className="form-label">🔍 Select Time Slot from Weekly Timetable Grid</label>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(5, 1fr)',
+          gap: '0.6rem',
+          overflowX: 'auto',
+          paddingBottom: '0.5rem'
+        }}>
+          {dates.map((dt) => {
+            const isDateSelected = bookingForm.date === dt.isoString;
+            return (
+              <div key={dt.isoString} style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: '75px' }}>
+                <div style={{
+                  fontSize: '0.72rem', fontWeight: '800', textAlign: 'center',
+                  background: isDateSelected ? 'var(--accent-blue)' : 'rgba(255,255,255,0.03)',
+                  padding: '0.25rem', borderRadius: '4px', border: '1px solid var(--glass-border)',
+                  color: isDateSelected ? '#fff' : 'var(--text-secondary)'
+                }}>
+                  <div>{dt.dayName.slice(0, 3)}</div>
+                  <div style={{ fontSize: '0.62rem', opacity: 0.8 }}>{dt.dateLabel}</div>
+                </div>
+
+                {slotsTemplate.map((slot) => {
+                  const isBooked = bookedSlots.includes(slot) && bookingForm.date === dt.isoString;
+                  const isSelected = bookingForm.date === dt.isoString && bookingForm.timeSlot === slot;
+
+                  return (
+                    <button
+                      key={slot}
+                      type="button"
+                      disabled={isBooked}
+                      onClick={() => {
+                        setBookingForm({
+                          ...bookingForm,
+                          date: dt.isoString,
+                          timeSlot: slot
+                        });
+                      }}
+                      style={{
+                        fontSize: '0.68rem', padding: '0.3rem 0.2rem', borderRadius: '4px',
+                        border: isSelected ? '1.5px solid var(--accent-blue)' : '1px solid var(--glass-border)',
+                        background: isSelected ? 'rgba(59, 130, 246, 0.15)' : isBooked ? 'rgba(244,63,94,0.04)' : 'rgba(255,255,255,0.01)',
+                        color: isSelected ? 'var(--accent-blue)' : isBooked ? 'var(--danger)' : '#fff',
+                        cursor: isBooked ? 'not-allowed' : 'pointer',
+                        opacity: isBooked ? 0.45 : 1,
+                        textDecoration: isBooked ? 'line-through' : 'none',
+                        transition: 'var(--transition-smooth)'
+                      }}
+                    >
+                      {slot.replace(' ', '')}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading appointments...</div>;
@@ -343,7 +409,6 @@ const Appointments = () => {
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    {/* Patient Cancel action */}
                     {user.role === 'patient' && app.status === 'pending' && (
                       <button
                         className="btn btn-danger btn-sm"
@@ -353,7 +418,6 @@ const Appointments = () => {
                       </button>
                     )}
 
-                    {/* Doctor/Admin Approval actions */}
                     {(user.role === 'doctor' || user.role === 'admin') && app.status === 'pending' && (
                       <>
                         <button
@@ -373,7 +437,6 @@ const Appointments = () => {
                       </>
                     )}
 
-                    {/* Telemedicine Video Call Action */}
                     {app.status === 'approved' && (
                       <Link
                         to={`/appointments/${app._id}/call`}
@@ -385,7 +448,6 @@ const Appointments = () => {
                       </Link>
                     )}
 
-                    {/* Doctor Prescribe action */}
                     {user.role === 'doctor' && app.status === 'approved' && (
                       <button
                         className="btn btn-primary btn-sm"
@@ -432,7 +494,7 @@ const Appointments = () => {
               value={bookingForm.departmentId}
               onChange={(e) => {
                 const dep = e.target.value;
-                setBookingForm({ ...bookingForm, departmentId: dep, doctorId: '' });
+                setBookingForm({ ...bookingForm, departmentId: dep, doctorId: '', date: '', timeSlot: '' });
               }}
               required
             >
@@ -450,7 +512,7 @@ const Appointments = () => {
             <select
               className="form-select"
               value={bookingForm.doctorId}
-              onChange={(e) => setBookingForm({ ...bookingForm, doctorId: e.target.value })}
+              onChange={(e) => setBookingForm({ ...bookingForm, doctorId: e.target.value, date: '', timeSlot: '' })}
               required
               disabled={!bookingForm.departmentId}
             >
@@ -465,43 +527,19 @@ const Appointments = () => {
             </select>
           </div>
 
-          <div className="form-grid">
-            <div className="form-group">
-              <label className="form-label">Preferred Date *</label>
-              <input
-                type="date"
-                className="form-input"
-                value={bookingForm.date}
-                onChange={(e) => setBookingForm({ ...bookingForm, date: e.target.value })}
-                required
-              />
-            </div>
+          {/* Render Timetable Grid Selector */}
+          {renderWeeklyTimetable()}
 
-            <div className="form-group">
-              <label className="form-label">Preferred Time Slot *</label>
-              <select
-                className="form-select"
-                value={bookingForm.timeSlot}
-                onChange={(e) => setBookingForm({ ...bookingForm, timeSlot: e.target.value })}
-                required
-                disabled={!bookingForm.doctorId || !bookingForm.date || availableSlots.length === 0 || loadingSlots}
-              >
-                {!bookingForm.doctorId || !bookingForm.date ? (
-                  <option value="">-- Choose Doctor & Date First --</option>
-                ) : loadingSlots ? (
-                  <option value="">Checking slots availability...</option>
-                ) : availableSlots.length === 0 ? (
-                  <option value="">No slots available for this day</option>
-                ) : (
-                  availableSlots.map((slot) => (
-                    <option key={slot} value={slot}>
-                      {slot}
-                    </option>
-                  ))
-                )}
-              </select>
+          {/* Selected Schedule display panel */}
+          {bookingForm.date && bookingForm.timeSlot && (
+            <div style={{
+              fontSize: '0.8rem', color: 'var(--accent-teal)', fontWeight: 700,
+              background: 'rgba(20, 184, 166, 0.08)', padding: '0.5rem', borderRadius: '4px',
+              border: '1px solid rgba(20, 184, 166, 0.2)', marginBottom: '1.25rem', textAlign: 'center'
+            }}>
+              Selected Schedule: {new Date(bookingForm.date).toLocaleDateString()} at {bookingForm.timeSlot}
             </div>
-          </div>
+          )}
 
           <div className="form-group">
             <label className="form-label">Symptoms / Reasons *</label>

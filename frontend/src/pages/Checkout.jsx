@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../utils/api';
 import { CreditCard as CardIcon, QrCode, Building, CheckCircle, Landmark, ShieldCheck } from 'lucide-react';
+import { sendMockWhatsapp } from '../utils/whatsapp';
 
 const Checkout = () => {
   const { id } = useParams(); // Billing ID
@@ -79,9 +80,17 @@ const Checkout = () => {
       card: 'Card',
       upi: 'UPI',
       netbanking: 'NetBanking',
+      insurance: 'Insurance TPA Cashless',
     };
     const method = methodMap[activeTab];
     setPaymentMethodPending(method);
+
+    if (activeTab === 'insurance') {
+      alert('TPA Cashless Pre-Auth Claim ticket CLM' + Math.floor(100000 + Math.random() * 900000) + ' registered. Pre-auth cashless approved!');
+      handleVerifyAndPay(null);
+      return;
+    }
+
     setOtpValue('');
     setOtpError('');
     setNetbankingForm({ username: '', password: '' });
@@ -123,6 +132,7 @@ const Checkout = () => {
       await api.put(`/billing/${id}/pay`, { paymentMethod: paymentMethodPending });
       
       setProcessingStatus('success');
+      sendMockWhatsapp(`💳 *[AS HOSPITAL]* Payment Cleared!\nDear Patient, your payment of ₹${bill.total.toLocaleString('en-IN')} via ${paymentMethodPending} has been received successfully.\nTransaction ID: MOCK${Math.floor(100000 + Math.random() * 900000)}\nView details: http://localhost:5173/billing`);
       setTimeout(() => {
         setShowOtpOverlay(false);
         navigate('/billing');
@@ -211,7 +221,7 @@ const Checkout = () => {
         <div style={leftPanelStyle}>
           <h3 style={{ marginBottom: '1.5rem', fontWeight: 700, fontSize: '1.2rem' }}>Select Payment Option</h3>
           
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
             <button type="button" style={tabStyle(activeTab === 'card')} onClick={() => setActiveTab('card')}>
               <CardIcon size={20} />
               <span>Card Payment</span>
@@ -223,6 +233,10 @@ const Checkout = () => {
             <button type="button" style={tabStyle(activeTab === 'netbanking')} onClick={() => setActiveTab('netbanking')}>
               <Building size={20} />
               <span>NetBanking</span>
+            </button>
+            <button type="button" style={tabStyle(activeTab === 'insurance')} onClick={() => setActiveTab('insurance')}>
+              <ShieldCheck size={20} />
+              <span>Cashless Claim</span>
             </button>
           </div>
 
@@ -384,6 +398,38 @@ const Checkout = () => {
                     <option value="axis">Axis Bank</option>
                     <option value="kotak">Kotak Mahindra Bank</option>
                   </select>
+                </div>
+              </div>
+            )}
+
+            {/* Insurance Claim TPA cashless Form */}
+            {activeTab === 'insurance' && (
+              <div style={{ animation: 'fadeIn 0.3s ease-out' }}>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                  Upload active insurance parameters and policy card documents for cashless counter claims.
+                </p>
+                <div className="form-group">
+                  <label className="form-label">TPA Insurance Provider *</label>
+                  <select className="form-select" required>
+                    <option value="star">Star Health Insurance</option>
+                    <option value="hdfc_ergo">HDFC ERGO Health</option>
+                    <option value="icici_lombard">ICICI Lombard</option>
+                    <option value="niva_bupa">Niva Bupa</option>
+                  </select>
+                </div>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label className="form-label">Policy Number *</label>
+                    <input type="text" className="form-input" placeholder="e.g. STAR-910283" required />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Corporate Group/Emp ID</label>
+                    <input type="text" className="form-input" placeholder="e.g. INFY-90281" />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Upload Policy Card Copy *</label>
+                  <input type="file" className="form-input" required />
                 </div>
               </div>
             )}

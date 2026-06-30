@@ -120,6 +120,11 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('receive-message', { message, senderName });
   });
 
+  // Relay collaborative whiteboard drawings
+  socket.on('whiteboard-draw', ({ roomId, drawData }) => {
+    socket.to(roomId).emit('whiteboard-draw', { drawData });
+  });
+
   // User leaves the consultation room
   socket.on('leave-room', ({ roomId, userName }) => {
     console.log(`User ${userName} left room ${roomId}`);

@@ -65,14 +65,19 @@ const WaitingRoom = () => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel(); // Stop current speech
       
-      const text = `Token number ${tokenNum}. Please proceed to Doctor ${doctorName}. Department, ${deptName}.`;
+      const isHindi = localStorage.getItem('language') === 'hn';
+      const text = isHindi
+        ? `टोकन नंबर ${tokenNum}. कृपया डॉक्टर ${doctorName} के केबिन में जाएं। विभाग, ${deptName}.`
+        : `Token number ${tokenNum}. Please proceed to Doctor ${doctorName}. Department, ${deptName}.`;
+
       const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = isHindi ? 'hi-IN' : 'en-US';
       utterance.volume = voiceSettings.volume;
       utterance.rate = voiceSettings.rate;
       utterance.pitch = voiceSettings.pitch;
       
       const voicesList = window.speechSynthesis.getVoices();
-      const selectedVoice = voicesList.find(v => v.name === voiceSettings.voiceName);
+      const selectedVoice = voicesList.find(v => isHindi ? v.lang.includes('hi') || v.lang.includes('IN') : v.name === voiceSettings.voiceName);
       if (selectedVoice) {
         utterance.voice = selectedVoice;
       } else {

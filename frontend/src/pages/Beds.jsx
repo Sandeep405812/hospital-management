@@ -215,6 +215,136 @@ const Beds = () => {
   const occupiedBeds = beds.filter((b) => b.status === 'Occupied').length;
   const vacantBeds = beds.filter((b) => b.status === 'Available').length;
 
+  const renderSVGFloorMap = () => {
+    const getStats = (type) => {
+      const wardBeds = beds.filter(b => b.wardType === type);
+      const total = wardBeds.length;
+      const occupied = wardBeds.filter(b => b.status === 'Occupied').length;
+      return { total, occupied, vacant: total - occupied };
+    };
+
+    const icu = getStats('ICU');
+    const gen = getStats('General');
+    const semi = getStats('Semi-Private');
+    const priv = getStats('Private');
+
+    return (
+      <div style={{
+        background: 'var(--glass-bg)',
+        border: '1px solid var(--glass-border)',
+        borderRadius: 'var(--border-radius-lg)',
+        padding: '1.5rem',
+        marginBottom: '2rem',
+        boxShadow: 'var(--shadow-md)',
+      }} className="chart-card">
+        <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem', color: '#fff' }}>🗺️ Interactive Hospital Ward Floor Map</h3>
+        <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+          Click on any ward wing chamber to filter occupancy logs below.
+        </p>
+
+        <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <svg width="440" height="200" viewBox="0 0 440 200" style={{ overflow: 'visible' }}>
+            {/* ICU Chamber */}
+            <g style={{ cursor: 'pointer' }} onClick={() => setActiveWard('ICU')}>
+              <rect 
+                x="10" y="10" width="180" height="80" rx="8"
+                fill={activeWard === 'ICU' ? 'rgba(244, 63, 94, 0.15)' : 'rgba(255,255,255,0.01)'}
+                stroke={activeWard === 'ICU' ? 'var(--danger)' : 'rgba(244, 63, 94, 0.3)'}
+                strokeWidth="2.5"
+                style={{ transition: 'var(--transition-smooth)' }}
+              />
+              <text x="25" y="40" fill="#fff" fontSize="11" fontWeight="700">🚨 ICU WING</text>
+              <text x="25" y="60" fill="var(--text-secondary)" fontSize="9">
+                Beds: {icu.occupied}/{icu.total} Occupied ({icu.vacant} vacant)
+              </text>
+            </g>
+
+            {/* Private Ward Chamber */}
+            <g style={{ cursor: 'pointer' }} onClick={() => setActiveWard('Private')}>
+              <rect 
+                x="210" y="10" width="180" height="80" rx="8"
+                fill={activeWard === 'Private' ? 'rgba(234, 179, 8, 0.15)' : 'rgba(255,255,255,0.01)'}
+                stroke={activeWard === 'Private' ? '#eab308' : 'rgba(234, 179, 8, 0.3)'}
+                strokeWidth="2.5"
+                style={{ transition: 'var(--transition-smooth)' }}
+              />
+              <text x="225" y="40" fill="#fff" fontSize="11" fontWeight="700">👑 PRIVATE SUITES</text>
+              <text x="225" y="60" fill="var(--text-secondary)" fontSize="9">
+                Beds: {priv.occupied}/{priv.total} Occupied ({priv.vacant} vacant)
+              </text>
+            </g>
+
+            {/* Semi-Private Ward Chamber */}
+            <g style={{ cursor: 'pointer' }} onClick={() => setActiveWard('Semi-Private')}>
+              <rect 
+                x="10" y="110" width="180" height="80" rx="8"
+                fill={activeWard === 'Semi-Private' ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255,255,255,0.01)'}
+                stroke={activeWard === 'Semi-Private' ? '#6366f1' : 'rgba(99, 102, 241, 0.3)'}
+                strokeWidth="2.5"
+                style={{ transition: 'var(--transition-smooth)' }}
+              />
+              <text x="25" y="140" fill="#fff" fontSize="11" fontWeight="700">👥 SEMI-PRIVATE WARD</text>
+              <text x="25" y="160" fill="var(--text-secondary)" fontSize="9">
+                Beds: {semi.occupied}/{semi.total} Occupied ({semi.vacant} vacant)
+              </text>
+            </g>
+
+            {/* General Ward Chamber */}
+            <g style={{ cursor: 'pointer' }} onClick={() => setActiveWard('General')}>
+              <rect 
+                x="210" y="110" width="180" height="80" rx="8"
+                fill={activeWard === 'General' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.01)'}
+                stroke={activeWard === 'General' ? '#10b981' : 'rgba(16, 185, 129, 0.3)'}
+                strokeWidth="2.5"
+                style={{ transition: 'var(--transition-smooth)' }}
+              />
+              <text x="225" y="140" fill="#fff" fontSize="11" fontWeight="700">🏢 GENERAL WARD</text>
+              <text x="225" y="160" fill="var(--text-secondary)" fontSize="9">
+                Beds: {gen.occupied}/{gen.total} Occupied ({gen.vacant} vacant)
+              </text>
+            </g>
+
+            {/* Lobby / Lobby Link (Reset) */}
+            <g style={{ cursor: 'pointer' }} onClick={() => setActiveWard('All')}>
+              <circle 
+                cx="405" cy="100" r="22"
+                fill={activeWard === 'All' ? 'rgba(20, 184, 166, 0.2)' : 'rgba(255,255,255,0.05)'}
+                stroke={activeWard === 'All' ? 'var(--accent-teal)' : 'var(--glass-border)'}
+                strokeWidth="2"
+                style={{ transition: 'var(--transition-smooth)' }}
+              />
+              <text x="405" y="103" textAnchor="middle" fill="#fff" fontSize="8" fontWeight="800">ALL</text>
+            </g>
+          </svg>
+
+          {/* Wing occupancy index */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.8rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--danger)' }}></span>
+              <span style={{ fontWeight: 600 }}>ICU Wards:</span>
+              <span style={{ color: 'var(--text-secondary)' }}>{icu.occupied} Active ({icu.vacant} Vacant)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#eab308' }}></span>
+              <span style={{ fontWeight: 600 }}>Private Suites:</span>
+              <span style={{ color: 'var(--text-secondary)' }}>{priv.occupied} Active ({priv.vacant} Vacant)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#6366f1' }}></span>
+              <span style={{ fontWeight: 600 }}>Semi-Private:</span>
+              <span style={{ color: 'var(--text-secondary)' }}>{semi.occupied} Active ({semi.vacant} Vacant)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }}></span>
+              <span style={{ fontWeight: 600 }}>General Wards:</span>
+              <span style={{ color: 'var(--text-secondary)' }}>{gen.occupied} Active ({gen.vacant} Vacant)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div>
       <div className="page-header">
@@ -254,6 +384,9 @@ const Beds = () => {
           </div>
         </div>
       </div>
+
+      {/* Visual Ward Floor Map */}
+      {renderSVGFloorMap()}
 
       {/* Ward Filter Buttons */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>

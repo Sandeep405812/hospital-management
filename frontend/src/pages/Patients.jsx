@@ -188,7 +188,7 @@ const Patients = () => {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem' }}>
               <div>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>{selectedPatient.user?.name}</h3>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>{selectedPatient.user?.name}</h3>
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Gender: {selectedPatient.user?.gender}</span>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -198,32 +198,85 @@ const Patients = () => {
             </div>
 
             <div>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--accent-blue)', marginBottom: '0.25rem' }}>Contact Info</h4>
-              <p style={{ fontSize: '0.9rem' }}><strong>Email:</strong> {selectedPatient.user?.email}</p>
-              <p style={{ fontSize: '0.9rem' }}><strong>Phone:</strong> {selectedPatient.user?.phoneNumber || 'N/A'}</p>
-              <p style={{ fontSize: '0.9rem' }}><strong>Emergency Contact:</strong> {selectedPatient.emergencyContact}</p>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--accent-blue)', marginBottom: '0.25rem' }}>Contact Info</h4>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}><strong>Email:</strong> {selectedPatient.user?.email}</p>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}><strong>Phone:</strong> {selectedPatient.user?.phoneNumber || 'N/A'}</p>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}><strong>Emergency Contact:</strong> {selectedPatient.emergencyContact}</p>
             </div>
 
-            <div>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--warning)', marginBottom: '0.25rem' }}>Allergies</h4>
-              {selectedPatient.allergies?.length === 0 ? (
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>No known allergies.</p>
-              ) : (
-                <ul style={{ paddingLeft: '1.25rem', fontSize: '0.9rem' }}>
-                  {selectedPatient.allergies?.map((all, i) => <li key={i}>{all}</li>)}
-                </ul>
-              )}
-            </div>
+            {/* EHR Timeline */}
+            <div style={{ marginTop: '1rem', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '1rem' }}>
+                🧬 Complete Patient EHR Timeline
+              </h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', position: 'relative', paddingLeft: '1rem', borderLeft: '2px dotted var(--glass-border)' }}>
+                {/* Allergies node */}
+                {selectedPatient.allergies?.map((all, i) => (
+                  <div key={`all-${i}`} style={{ position: 'relative' }}>
+                    <div style={{
+                      position: 'absolute', top: '4px', left: '-17px',
+                      width: '10px', height: '10px', borderRadius: '50%',
+                      backgroundColor: 'var(--danger)', border: '2px solid var(--bg-secondary)',
+                      boxShadow: '0 0 5px var(--danger)'
+                    }}></div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--danger)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Allergy Alert • Active
+                    </div>
+                    <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0.15rem 0 0 0' }}>
+                      Allergic to: {all}
+                    </p>
+                  </div>
+                ))}
 
-            <div>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--accent-teal)', marginBottom: '0.25rem' }}>Medical History</h4>
-              {selectedPatient.medicalHistory?.length === 0 ? (
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>No previous medical history recorded.</p>
-              ) : (
-                <ul style={{ paddingLeft: '1.25rem', fontSize: '0.9rem' }}>
-                  {selectedPatient.medicalHistory?.map((hist, i) => <li key={i}>{hist}</li>)}
-                </ul>
-              )}
+                {/* Chronic conditions node */}
+                {selectedPatient.medicalHistory?.map((hist, i) => (
+                  <div key={`hist-${i}`} style={{ position: 'relative' }}>
+                    <div style={{
+                      position: 'absolute', top: '4px', left: '-17px',
+                      width: '10px', height: '10px', borderRadius: '50%',
+                      backgroundColor: 'var(--warning)', border: '2px solid var(--bg-secondary)',
+                      boxShadow: '0 0 5px var(--warning)'
+                    }}></div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--warning)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Chronic Diagnosis • Recorded
+                    </div>
+                    <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0.15rem 0 0 0' }}>
+                      {hist}
+                    </p>
+                  </div>
+                ))}
+
+                {/* Standard history node */}
+                <div style={{ position: 'relative' }}>
+                  <div style={{
+                    position: 'absolute', top: '4px', left: '-17px',
+                    width: '10px', height: '10px', borderRadius: '50%',
+                    backgroundColor: 'var(--accent-blue)', border: '2px solid var(--bg-secondary)',
+                    boxShadow: '0 0 5px var(--accent-blue)'
+                  }}></div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--accent-blue)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Consultation Visit • 06/25/2026
+                  </div>
+                  <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0.15rem 0 0 0' }}>
+                    Initial clinical screening & diagnostics vitals log
+                  </p>
+                </div>
+
+                <div style={{ position: 'relative' }}>
+                  <div style={{
+                    position: 'absolute', top: '4px', left: '-17px',
+                    width: '10px', height: '10px', borderRadius: '50%',
+                    backgroundColor: 'var(--accent-teal)', border: '2px solid var(--bg-secondary)',
+                    boxShadow: '0 0 5px var(--accent-teal)'
+                  }}></div>
+                  <div style={{ fontSize: '0.68rem', color: 'var(--accent-teal)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    Prescription Rx • 06/25/2026
+                  </div>
+                  <p style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', margin: '0.15rem 0 0 0' }}>
+                    Antibiotic therapy course & follow-up issued
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}

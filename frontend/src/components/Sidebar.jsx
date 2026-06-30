@@ -19,7 +19,9 @@ import {
   Heart,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Package,
+  ShoppingBag
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose }) => {
@@ -121,6 +123,20 @@ const Sidebar = ({ isOpen, onClose }) => {
       label: t('surgeries'),
       icon: <Calendar size={20} />,
       roles: ['admin', 'doctor', 'receptionist'],
+      group: 'management'
+    },
+    {
+      to: '/inventory',
+      label: t('inventoryStock'),
+      icon: <Package size={20} />,
+      roles: ['admin', 'doctor', 'receptionist'],
+      group: 'management'
+    },
+    {
+      to: '/store',
+      label: t('medicalStore'),
+      icon: <ShoppingBag size={20} />,
+      roles: ['admin', 'doctor', 'patient', 'receptionist'],
       group: 'management'
     },
     {
@@ -328,8 +344,11 @@ const Sidebar = ({ isOpen, onClose }) => {
 
       {/* Hospital Logo branding */}
       <div style={logoStyle}>
-        <span>🏥</span>
-        {!isCollapsed && <span style={{ letterSpacing: '-0.5px' }}>AS HOSPITAL</span>}
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--accent-teal)' }}>
+          <path d="M19 14c1.66 0 3-1.34 3-3V6c0-1.66-1.34-3-3-3H5C3.34 3 2 4.34 2 6v5c0 1.66 1.34 3 3 3h14Z"/>
+          <path d="M12 3v14M8 10h8"/>
+        </svg>
+        {!isCollapsed && <span style={{ letterSpacing: '-0.5px', color: '#fff' }}>CareHMS ERP</span>}
       </div>
 
       {/* User profile demographics badge */}
