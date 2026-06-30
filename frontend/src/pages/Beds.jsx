@@ -190,7 +190,7 @@ const Beds = () => {
       await html2pdf().from(element).set(opt).save();
 
       // Trigger the backend API call to discharge the patient
-      await api.put(`/beds/${selectedBed._id}/discharge`);
+      await api.put(`/beds/${selectedBed._id}/discharge`, dischargeForm);
       
       setShowDischargeModal(false);
       setSelectedBed(null);
@@ -278,23 +278,27 @@ const Beds = () => {
         {filteredBeds.map((bed) => {
           const isOccupied = bed.status === 'Occupied';
           const isStaff = user.role === 'admin' || user.role === 'doctor' || user.role === 'receptionist';
+          const wardClass = `ward-${bed.wardType.toLowerCase().replace('-', '')}`;
+          const isSpecialWard = ['ICU', 'Private', 'Semi-Private', 'General'].includes(bed.wardType);
           
           return (
             <div
               key={bed._id}
-              className="bed-card"
+              className={`bed-card ${wardClass}`}
               style={{
                 background: 'var(--glass-bg)',
-                border: `1px solid ${isOccupied ? 'rgba(239, 68, 68, 0.25)' : 'var(--glass-border)'}`,
                 borderRadius: 'var(--border-radius)',
                 padding: '1.5rem',
-                boxShadow: 'var(--shadow-sm)',
                 transition: 'var(--transition-smooth)',
                 position: 'relative',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
-                minHeight: '160px'
+                minHeight: '160px',
+                ...(!isSpecialWard ? {
+                  border: `1px solid ${isOccupied ? 'rgba(239, 68, 68, 0.25)' : 'var(--glass-border)'}`,
+                  boxShadow: 'var(--shadow-sm)'
+                } : {})
               }}
             >
               <div>

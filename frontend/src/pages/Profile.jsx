@@ -16,23 +16,26 @@ const Profile = () => {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('profile'); // profile, timeline
   const [timeline, setTimeline] = useState([]);
+  const [selectedSummary, setSelectedSummary] = useState(null);
 
   useEffect(() => {
     if (user && user.role === 'patient') {
       const fetchTimeline = async () => {
         try {
-          const [apps, scripts, bills, reps] = await Promise.all([
+          const [apps, scripts, bills, reps, summaries] = await Promise.all([
             api.get('/appointments'),
             api.get('/prescriptions'),
             api.get('/billing'),
-            api.get('/reports')
+            api.get('/reports'),
+            api.get('/beds/discharge-summaries')
           ]);
 
           const items = [
             ...apps.map(a => ({ date: a.date, type: 'appointment', title: 'Doctor Consultation', desc: `Consulted Dr. ${a.doctor?.user?.name || 'Physician'} (${a.symptoms})`, badge: a.status })),
             ...scripts.map(p => ({ date: p.date, type: 'prescription', title: 'Rx Prescription Issued', desc: `Medicines: ${p.medicines?.map(m => m.name).join(', ')}`, notes: p.notes })),
             ...bills.map(b => ({ date: b.createdAt, type: 'billing', title: 'Billing Statement', desc: `Invoice Total: ₹${b.total}`, badge: b.status })),
-            ...reps.map(r => ({ date: r.date, type: 'report', title: 'Lab Report Uploaded', desc: r.title }))
+            ...reps.map(r => ({ date: r.date, type: 'report', title: 'Lab Report Uploaded', desc: r.title })),
+            ...summaries.map(s => ({ date: s.dischargeDate, type: 'discharge', title: 'Discharge Summary', desc: `Discharged from Bed ${s.bedNumber} (${s.wardType} Ward). Diagnosis: ${s.diagnosis}`, details: s }))
           ];
 
           items.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -472,12 +475,31 @@ const Profile = () => {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', position: 'relative', paddingLeft: '1.5rem', borderLeft: '2px dashed var(--glass-border)', marginLeft: '1rem' }}>
                 {timeline.map((item, index) => (
-                  <div key={index} style={{ position: 'relative', marginBottom: '0.5rem' }}>
+                  <div
+                    key={index}
+                    style={{
+                      position: 'relative',
+                      marginBottom: '0.5rem',
+                      cursor: item.type === 'discharge' ? 'pointer' : 'default',
+                      padding: item.type === 'discharge' ? '0.75rem' : '0',
+                      borderRadius: item.type === 'discharge' ? 'var(--border-radius-sm)' : '0',
+                      background: item.type === 'discharge' ? 'rgba(236, 72, 153, 0.05)' : 'none',
+                      border: item.type === 'discharge' ? '1px dashed rgba(236, 72, 153, 0.2)' : 'none',
+                      transition: 'var(--transition-smooth)',
+                    }}
+                    onClick={() => {
+                      if (item.type === 'discharge') {
+                        setSelectedSummary(item.details);
+                      }
+                    }}
+                  >
                     {/* Timeline bullet dot */}
                     <div style={{
-                      position: 'absolute', left: '-31px', top: '4px',
+                      position: 'absolute',
+                      left: item.type === 'discharge' ? '-43px' : '-31px',
+                      top: item.type === 'discharge' ? '16px' : '4px',
                       width: '12px', height: '12px', borderRadius: '50%',
-                      backgroundColor: item.type === 'appointment' ? 'var(--accent-blue)' : item.type === 'prescription' ? 'var(--accent-teal)' : item.type === 'billing' ? 'var(--warning)' : 'var(--success)',
+                      backgroundColor: item.type === 'appointment' ? 'var(--accent-blue)' : item.type === 'prescription' ? 'var(--accent-teal)' : item.type === 'billing' ? 'var(--warning)' : item.type === 'discharge' ? '#ec4899' : 'var(--success)',
                       border: '3px solid #0f172a'
                     }} />
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>
@@ -487,6 +509,11 @@ const Profile = () => {
                     <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', margin: 0 }}>{item.desc}</p>
                     {item.notes && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: '0.25rem 0 0 0' }}>Advice: {item.notes}</p>}
                     {item.badge && <span className={`badge badge-${item.badge}`} style={{ marginTop: '0.4rem' }}>{item.badge}</span>}
+                    {item.type === 'discharge' && (
+                      <span style={{ fontSize: '0.75rem', color: '#ec4899', display: 'block', marginTop: '0.4rem', fontWeight: 600 }}>
+                        Click to view full Clinical Report
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -565,6 +592,92 @@ const Profile = () => {
               {settingsLoading ? 'Saving Settings...' : 'Update Payment Settings'}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Discharge Summary details modal popup */}
+      {selectedSummary && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(9, 13, 22, 0.85)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)',
+            borderRadius: 'var(--border-radius-lg)', padding: '2.5rem',
+            maxWidth: '520px', width: '90%', maxHeight: '90vh', overflowY: 'auto'
+          }}>
+            <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.5rem', color: '#fff' }}>
+              Clinical Discharge Summary
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+              Official discharge records for your hospital admission.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+              <div>
+                <strong>Ward Details:</strong>
+                <div style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                  Bed {selectedSummary.bedNumber} ({selectedSummary.wardType} Ward)
+                </div>
+              </div>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <strong>Admission Date:</strong>
+                  <div style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                    {new Date(selectedSummary.admissionDate).toLocaleDateString()}
+                  </div>
+                </div>
+                <div>
+                  <strong>Discharge Date:</strong>
+                  <div style={{ color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                    {new Date(selectedSummary.dischargeDate).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <strong>Clinical Diagnosis:</strong>
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', borderRadius: 'var(--border-radius-sm)', padding: '0.75rem', marginTop: '0.25rem', color: 'var(--text-secondary)' }}>
+                  {selectedSummary.diagnosis}
+                </div>
+              </div>
+
+              <div>
+                <strong>Treatment Summary:</strong>
+                <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', borderRadius: 'var(--border-radius-sm)', padding: '0.75rem', marginTop: '0.25rem', color: 'var(--text-secondary)', whiteSpace: 'pre-line' }}>
+                  {selectedSummary.treatment}
+                </div>
+              </div>
+
+              <div>
+                <strong>Condition at Discharge:</strong>
+                <div style={{ marginTop: '0.25rem' }}>
+                  <span className="badge badge-completed">{selectedSummary.condition}</span>
+                </div>
+              </div>
+
+              {selectedSummary.followUp && (
+                <div>
+                  <strong>Follow-up Plan & Advice:</strong>
+                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', borderRadius: 'var(--border-radius-sm)', padding: '0.75rem', marginTop: '0.25rem', color: 'var(--text-secondary)', whiteSpace: 'pre-line' }}>
+                    {selectedSummary.followUp}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-full"
+                onClick={() => setSelectedSummary(null)}
+              >
+                Close Summary
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

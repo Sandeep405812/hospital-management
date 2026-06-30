@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { BACKEND_URL } from '../utils/api';
-import { User, Menu, Bell, Globe } from 'lucide-react';
+import { User, Menu, Bell, Globe, Search } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { io } from 'socket.io-client';
 
@@ -10,6 +10,41 @@ const Navbar = ({ title, onMenuClick }) => {
   const { language, toggleLanguage, t } = useLanguage();
   const [notifications, setNotifications] = React.useState([]);
   const [bellOpen, setBellOpen] = React.useState(false);
+  const [shakeBell, setShakeBell] = React.useState(false);
+  const [timeStr, setTimeStr] = React.useState('');
+  const searchInputRef = React.useRef(null);
+
+  // Live Date-Time Clock
+  React.useEffect(() => {
+    const updateTime = () => {
+      const options = { 
+        weekday: 'short', 
+        month: 'short', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit' 
+      };
+      setTimeStr(new Date().toLocaleDateString('en-US', options));
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Keyboard shortcut Ctrl+K focus search
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        if (searchInputRef.current) {
+          searchInputRef.current.focus();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   React.useEffect(() => {
     const saved = JSON.parse(localStorage.getItem('hospital_notifications') || '[]');
@@ -35,6 +70,8 @@ const Navbar = ({ title, onMenuClick }) => {
   }, []);
 
   const addNotification = (text) => {
+    setShakeBell(true);
+    setTimeout(() => setShakeBell(false), 600);
     setNotifications((prev) => {
       const updated = [{ text, time: Date.now(), read: false }, ...prev].slice(0, 15);
       localStorage.setItem('hospital_notifications', JSON.stringify(updated));
@@ -47,10 +84,28 @@ const Navbar = ({ title, onMenuClick }) => {
     localStorage.removeItem('hospital_notifications');
   };
 
+  const getBreadcrumbs = () => {
+    const path = window.location.pathname;
+    if (path === '/dashboard') return 'Home / Dashboard';
+    if (path === '/appointments') return 'Home / Appointments';
+    if (path === '/symptom-checker') return 'Home / Symptom Checker';
+    if (path === '/metrics') return 'Home / Health Tracker';
+    if (path === '/doctors') return 'Home / Doctors';
+    if (path === '/patients') return 'Home / Patients';
+    if (path === '/beds') return 'Home / Ward Bed Map';
+    if (path === '/surgery-schedule') return 'Home / Surgery Schedule';
+    if (path === '/prescriptions') return 'Home / Prescriptions';
+    if (path === '/billing') return 'Home / Billing & Invoices';
+    if (path === '/reports') return 'Home / Medical Reports';
+    if (path === '/departments') return 'Home / Departments';
+    if (path === '/profile') return 'Home / My Profile';
+    return 'Home';
+  };
+
   if (!user) return null;
 
   const navbarStyle = {
-    height: '70px',
+    height: '75px',
     backgroundColor: 'var(--bg-secondary)',
     borderBottom: '1px solid var(--glass-border)',
     display: 'flex',
@@ -60,46 +115,6 @@ const Navbar = ({ title, onMenuClick }) => {
     position: 'sticky',
     top: 0,
     zIndex: 90,
-  };
-
-  const titleStyle = {
-    fontSize: '1.25rem',
-    fontWeight: '700',
-    flexGrow: 1,
-  };
-
-  const userSectionStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-  };
-
-  const userInfoStyle = {
-    textAlign: 'right',
-  };
-
-  const userNameStyle = {
-    fontWeight: '600',
-    fontSize: '0.95rem',
-  };
-
-  const userRoleStyle = {
-    fontSize: '0.75rem',
-    color: 'var(--text-secondary)',
-    textTransform: 'capitalize',
-    display: 'block',
-  };
-
-  const avatarStyle = {
-    width: '40px',
-    height: '40px',
-    borderRadius: '50%',
-    backgroundColor: 'var(--bg-tertiary)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: 'var(--accent-blue)',
-    border: '2px solid var(--glass-border)',
   };
 
   return (
@@ -122,9 +137,55 @@ const Navbar = ({ title, onMenuClick }) => {
         <Menu size={24} />
       </button>
 
-      <div style={titleStyle} className="navbar-title">{title || 'AS HOSPITAL'}</div>
+      {/* Title & Breadcrumbs */}
+      <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }} className="navbar-title-container">
+        <div style={{ fontSize: '1.2rem', fontWeight: '800', color: '#fff', lineHeight: 1.2 }}>{title || 'AS HOSPITAL'}</div>
+        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>{getBreadcrumbs()}</div>
+      </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+        {/* Search Bar container */}
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '220px' }} className="navbar-search-container">
+          <span style={{ position: 'absolute', left: '10px', display: 'flex', alignItems: 'center', color: 'var(--text-muted)' }}>
+            <Search size={14} />
+          </span>
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Search dashboard..."
+            style={{
+              padding: '0.45rem 2.8rem 0.45rem 2rem',
+              borderRadius: 'var(--border-radius-sm)',
+              border: '1px solid var(--glass-border)',
+              background: 'rgba(15, 23, 42, 0.4)',
+              fontSize: '0.8rem',
+              width: '100%',
+              outline: 'none',
+              color: '#fff',
+              transition: 'var(--transition-smooth)'
+            }}
+          />
+          <span style={{
+            position: 'absolute',
+            right: '8px',
+            fontSize: '0.65rem',
+            background: 'rgba(255, 255, 255, 0.06)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            padding: '0.15rem 0.35rem',
+            borderRadius: '4px',
+            color: 'var(--text-secondary)',
+            fontWeight: 600,
+            pointerEvents: 'none'
+          }}>
+            Ctrl+K
+          </span>
+        </div>
+
+        {/* Live Clock Display */}
+        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontWeight: 500 }} className="navbar-clock">
+          {timeStr}
+        </div>
+
         {/* Language Toggle Trigger */}
         <button 
           onClick={toggleLanguage}
@@ -141,6 +202,7 @@ const Navbar = ({ title, onMenuClick }) => {
           <button 
             onClick={() => setBellOpen(!bellOpen)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', position: 'relative', display: 'flex', alignItems: 'center' }}
+            className={shakeBell ? 'shake-bell' : ''}
           >
             <Bell size={22} />
             {notifications.filter(n => !n.read).length > 0 && (
@@ -197,17 +259,29 @@ const Navbar = ({ title, onMenuClick }) => {
           )}
         </div>
 
-        <div style={userSectionStyle}>
-          <div style={userInfoStyle} className="navbar-user-info">
-            <div style={{ fontWeight: '600', fontSize: '0.95rem' }}>{user.name}</div>
+        {/* User profile section */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ textAlign: 'right' }} className="navbar-user-info">
+            <div style={{ fontWeight: '600', fontSize: '0.95rem', color: '#fff' }}>{user.name}</div>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textTransform: 'capitalize', display: 'block' }}>{user.role}</span>
           </div>
-          <div style={avatarStyle}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '50%',
+            backgroundColor: 'var(--bg-tertiary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--accent-blue)',
+            border: '2px solid var(--glass-border)',
+            overflow: 'hidden'
+          }}>
             {user.avatar ? (
               <img
                 src={user.avatar.startsWith('http') ? user.avatar : `${BACKEND_URL}${user.avatar}`}
                 alt="avatar"
-                style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
               />
             ) : (
               <User size={20} />

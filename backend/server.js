@@ -20,6 +20,7 @@ import metricRoutes from './routes/metricRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
 import bedRoutes from './routes/bedRoutes.js';
 import surgeryRoutes from './routes/surgeryRoutes.js';
+import dischargeRoutes from './routes/dischargeRoutes.js';
 
 // Model imports for seeding
 import User from './models/User.js';
@@ -154,6 +155,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/metrics', metricRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/beds', bedRoutes);
+app.use('/api/beds/discharge-summaries', dischargeRoutes);
 app.use('/api/surgeries', surgeryRoutes);
 
 app.get('/', (req, res) => {

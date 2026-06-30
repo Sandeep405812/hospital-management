@@ -84,8 +84,97 @@ const Billing = () => {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    if (!selectedBill) return;
+
+    const element = document.createElement('div');
+    element.innerHTML = `
+      <div style="padding: 40px; font-family: 'Inter', sans-serif; color: #1e293b; background-color: #ffffff; width: 700px; margin: 0 auto;">
+        <!-- Header -->
+        <div style="border-bottom: 3px solid #0d9488; padding-bottom: 20px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <h1 style="color: #0d9488; margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px;">CAREHMS HOSPITALS</h1>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748b; font-style: italic;">Next-Gen Healthcare Management Ecosystem</p>
+          </div>
+          <div style="text-align: right;">
+            <h3 style="margin: 0; color: #0f766e; font-size: 16px; font-weight: 700;">INVOICE RECEIPT</h3>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #64748b; font-weight: 600;">#INV-${selectedBill._id.slice(-6).toUpperCase()}</p>
+            <p style="margin: 2px 0 0 0; font-size: 11px; color: #94a3b8;">Date: ${new Date(selectedBill.createdAt).toLocaleDateString()}</p>
+          </div>
+        </div>
+
+        <!-- Demographics Info -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px;">
+            <h4 style="margin: 0 0 8px 0; color: #0f766e; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">PATIENT DETAILS</h4>
+            <p style="margin: 0; font-size: 13px; font-weight: 600; color: #0f172a;">${selectedBill.patient?.user?.name || 'N/A'}</p>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #475569;">Email: ${selectedBill.patient?.user?.email || 'N/A'}</p>
+            <p style="margin: 2px 0 0 0; font-size: 12px; color: #475569;">Phone: ${selectedBill.patient?.user?.phoneNumber || 'N/A'}</p>
+          </div>
+          <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; border-radius: 8px;">
+            <h4 style="margin: 0 0 8px 0; color: #0f766e; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">CONSULTATION DETAILS</h4>
+            <p style="margin: 0; font-size: 13px; font-weight: 600; color: #0f172a;">Dr. ${selectedBill.appointment?.doctor?.user?.name || 'Physician'}</p>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #475569;">Department: ${selectedBill.appointment?.department?.name || 'General Medicine'}</p>
+            <p style="margin: 2px 0 0 0; font-size: 12px; color: #475569;">Payment Method: ${selectedBill.paymentMethod || 'Online'}</p>
+          </div>
+        </div>
+
+        <!-- Ledger Table -->
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+          <thead>
+            <tr style="border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 10px 0; text-align: left; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase;">Description</th>
+              <th style="padding: 10px 0; text-align: right; font-size: 12px; font-weight: 700; color: #475569; text-transform: uppercase;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 15px 0;">
+                <div style="font-size: 13px; font-weight: 600; color: #0f172a;">Doctor Consultation Fee</div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 3px;">Consultation Date: ${new Date(selectedBill.appointment?.date || selectedBill.createdAt).toLocaleDateString()}</div>
+              </td>
+              <td style="padding: 15px 0; text-align: right; font-size: 13px; font-weight: 600; color: #0f172a;">₹${selectedBill.amount}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #f1f5f9;">
+              <td style="padding: 10px 0; font-size: 12px; color: #475569;">Central GST (9%) & State GST (9%)</td>
+              <td style="padding: 10px 0; text-align: right; font-size: 12px; color: #475569;">₹${selectedBill.tax}</td>
+            </tr>
+            <tr style="border-top: 2px solid #cbd5e1; font-weight: 700;">
+              <td style="padding: 15px 0; font-size: 14px; color: #0f172a;">Grand Total Amount Paid</td>
+              <td style="padding: 15px 0; text-align: right; font-size: 16px; color: #0d9488;">₹${selectedBill.total}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Footer -->
+        <div style="margin-top: 60px; border-top: 1px solid #f1f5f9; padding-top: 20px; display: flex; justify-content: space-between; align-items: flex-end;">
+          <div style="font-size: 10px; color: #94a3b8; line-height: 1.5;">
+            <p style="margin: 0; font-weight: 600; color: #64748b;">CareHMS Medical Systems</p>
+            <p style="margin: 2px 0 0 0;">This is a computer generated invoice and does not require a physical signature.</p>
+          </div>
+          <div style="text-align: center; width: 160px;">
+            <div style="border-bottom: 1px solid #cbd5e1; margin-bottom: 6px; height: 30px;"></div>
+            <p style="margin: 0; font-size: 11px; font-weight: 700; color: #334155;">Billing Department</p>
+            <p style="margin: 2px 0 0 0; font-size: 9px; color: #94a3b8;">Authorized Signatory</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const opt = {
+      margin:       10,
+      filename:     `Invoice_${selectedBill._id.slice(-6).toUpperCase()}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2 },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    try {
+      await html2pdf().from(element).set(opt).save();
+    } catch (err) {
+      console.error('Failed to generate PDF', err);
+      window.print();
+    }
   };
 
   const filteredBills = bills.filter((bill) => {

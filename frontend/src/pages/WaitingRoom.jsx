@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { api, BACKEND_URL } from '../utils/api';
 import { io } from 'socket.io-client';
-import { Volume2, Play, Users, Clock, Award } from 'lucide-react';
+import { Volume2, Play, Users, Clock, Award, Settings } from 'lucide-react';
 import gsap from 'gsap';
 
 const WaitingRoom = () => {
@@ -9,6 +9,37 @@ const WaitingRoom = () => {
   const [loading, setLoading] = useState(true);
   const [lastAnnouncedToken, setLastAnnouncedToken] = useState(null);
   const socketRef = useRef(null);
+  
+  const [voices, setVoices] = useState([]);
+  const [voiceSettings, setVoiceSettings] = useState({
+    voiceName: '',
+    volume: 1.0,
+    rate: 0.85,
+    pitch: 1.05
+  });
+  const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    if ('speechSynthesis' in window) {
+      const loadVoices = () => {
+        const available = window.speechSynthesis.getVoices();
+        setVoices(available);
+        
+        // Pick a default voice if none selected yet
+        setVoiceSettings(prev => {
+          if (prev.voiceName) return prev;
+          const defaultVoice = available.find(v => v.name.includes('Google US English') || v.name.includes('Female')) || available[0];
+          return {
+            ...prev,
+            voiceName: defaultVoice ? defaultVoice.name : ''
+          };
+        });
+      };
+      
+      loadVoices();
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
 
   const fetchQueueData = async () => {
     try {
@@ -36,12 +67,34 @@ const WaitingRoom = () => {
       
       const text = `Token number ${tokenNum}. Please proceed to Doctor ${doctorName}. Department, ${deptName}.`;
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.85;
-      utterance.pitch = 1.05;
+      utterance.volume = voiceSettings.volume;
+      utterance.rate = voiceSettings.rate;
+      utterance.pitch = voiceSettings.pitch;
       
-      // Find a premium female voice if available
-      const voices = window.speechSynthesis.getVoices();
-      const selectedVoice = voices.find(v => v.name.includes('Google US English') || v.name.includes('Female')) || voices[0];
+      const voicesList = window.speechSynthesis.getVoices();
+      const selectedVoice = voicesList.find(v => v.name === voiceSettings.voiceName);
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+      } else {
+        const defaultVoice = voicesList.find(v => v.name.includes('Google US English') || v.name.includes('Female')) || voicesList[0];
+        if (defaultVoice) utterance.voice = defaultVoice;
+      }
+
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const handleTestSpeech = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const testText = "Testing announcer voice configuration. This is how the queue announcer will sound.";
+      const utterance = new SpeechSynthesisUtterance(testText);
+      utterance.volume = voiceSettings.volume;
+      utterance.rate = voiceSettings.rate;
+      utterance.pitch = voiceSettings.pitch;
+      
+      const voicesList = window.speechSynthesis.getVoices();
+      const selectedVoice = voicesList.find(v => v.name === voiceSettings.voiceName);
       if (selectedVoice) utterance.voice = selectedVoice;
 
       window.speechSynthesis.speak(utterance);
@@ -161,9 +214,32 @@ const WaitingRoom = () => {
             Real-time outpatient consultation board • Patient Waiting Lounge
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1.25rem', backgroundColor: 'rgba(20, 184, 166, 0.1)', border: '1px solid rgba(20, 184, 166, 0.25)', borderRadius: '9999px', color: 'var(--accent-teal)' }}>
-          <Volume2 size={20} className="pulse-chime" style={{ animation: 'bellPulse 2s infinite' }} />
-          <span style={{ fontWeight: '700', fontSize: '0.9rem', letterSpacing: '0.05em' }}>SPEECH AUDIO ON</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1.25rem', backgroundColor: 'rgba(20, 184, 166, 0.1)', border: '1px solid rgba(20, 184, 166, 0.25)', borderRadius: '9999px', color: 'var(--accent-teal)' }}>
+            <Volume2 size={20} className="pulse-chime" style={{ animation: 'bellPulse 2s infinite' }} />
+            <span style={{ fontWeight: '700', fontSize: '0.9rem', letterSpacing: '0.05em' }}>SPEECH AUDIO ON</span>
+          </div>
+          <button
+            onClick={() => setShowSettings(true)}
+            style={{
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '50%',
+              width: '44px',
+              height: '44px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#fff',
+              transition: 'var(--transition-smooth)',
+            }}
+            title="Configure Announcer Voice"
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)'; e.currentTarget.style.borderColor = 'rgba(20, 184, 166, 0.3)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)'; e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'; }}
+          >
+            <Settings size={20} />
+          </button>
         </div>
       </div>
 
@@ -280,6 +356,131 @@ const WaitingRoom = () => {
           100% { transform: scale(1); opacity: 1; }
         }
       `}</style>
+
+      {/* Settings Configuration Modal */}
+      {showSettings && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(9, 13, 22, 0.85)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: 'rgba(15, 23, 42, 0.95)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '20px',
+            padding: '2.5rem',
+            maxWidth: '480px',
+            width: '90%',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+            color: '#fff'
+          }}>
+            <h3 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: '0.5rem', color: 'var(--accent-teal)' }}>
+              Announcer Voice Settings
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+              Adjust Speech Synthesis narrator settings for token broadcasts.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              
+              {/* Voice Selector */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Select Voice / आवाज़ चुनें
+                </label>
+                <select
+                  style={{
+                    backgroundColor: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    padding: '0.6rem 0.8rem',
+                    color: '#fff',
+                    outline: 'none',
+                    fontSize: '0.9rem'
+                  }}
+                  value={voiceSettings.voiceName}
+                  onChange={(e) => setVoiceSettings({ ...voiceSettings, voiceName: e.target.value })}
+                >
+                  {voices.map((voice, idx) => (
+                    <option key={idx} value={voice.name} style={{ backgroundColor: '#1e293b', color: '#fff' }}>
+                      {voice.name} (${voice.lang})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Volume Slider */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <span>Volume: {Math.round(voiceSettings.volume * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.1"
+                  style={{ accentColor: 'var(--accent-teal)', height: '6px', borderRadius: '3px' }}
+                  value={voiceSettings.volume}
+                  onChange={(e) => setVoiceSettings({ ...voiceSettings, volume: parseFloat(e.target.value) })}
+                />
+              </div>
+
+              {/* Speed/Rate Slider */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <span>Speed / Rate: {voiceSettings.rate}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="2"
+                  step="0.05"
+                  style={{ accentColor: 'var(--accent-teal)', height: '6px', borderRadius: '3px' }}
+                  value={voiceSettings.rate}
+                  onChange={(e) => setVoiceSettings({ ...voiceSettings, rate: parseFloat(e.target.value) })}
+                />
+              </div>
+
+              {/* Pitch Slider */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <span>Pitch: {voiceSettings.pitch}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="1.5"
+                  step="0.05"
+                  style={{ accentColor: 'var(--accent-teal)', height: '6px', borderRadius: '3px' }}
+                  value={voiceSettings.pitch}
+                  onChange={(e) => setVoiceSettings({ ...voiceSettings, pitch: parseFloat(e.target.value) })}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-teal"
+                  style={{ flex: 1, padding: '0.6rem' }}
+                  onClick={handleTestSpeech}
+                >
+                  Test Speech
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ flex: 1, padding: '0.6rem' }}
+                  onClick={() => setShowSettings(false)}
+                >
+                  Save & Close
+                </button>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
