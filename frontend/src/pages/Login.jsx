@@ -115,11 +115,13 @@ const Login = () => {
             color: 'var(--text-secondary)',
           }}
         >
+         { /*
           <strong>Default Admin Demo Account:</strong>
           <br />
           Email: <code style={{ color: 'var(--accent-teal)' }}>admin@hospital.com</code>
           <br />
           Password: <code style={{ color: 'var(--accent-teal)' }}>adminpassword123</code>
+          */}
         </div>
       </div>
     </div>
