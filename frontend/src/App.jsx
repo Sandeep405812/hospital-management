@@ -46,7 +46,8 @@ const ProtectedRoute = ({ allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user.role)) {
+  // Admin is a superuser and can access all patient/staff pages
+  if (allowedRoles && user.role !== 'admin' && !allowedRoles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }
 
