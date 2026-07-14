@@ -24,6 +24,8 @@ import dischargeRoutes from './routes/dischargeRoutes.js';
 
 // Model imports for seeding
 import User from './models/User.js';
+import Doctor from './models/Doctor.js';
+import Patient from './models/Patient.js';
 
 // Load env vars
 dotenv.config();
@@ -186,7 +188,6 @@ const seedAdmin = async () => {
     console.error('Error seeding admin user:', error.message);
   }
 };
-seedAdmin();
 
 // Seed default receptionist if none exists
 const seedReceptionist = async () => {
@@ -207,7 +208,73 @@ const seedReceptionist = async () => {
     console.error('Error seeding receptionist user:', error.message);
   }
 };
-seedReceptionist();
+
+// Seed default doctor if none exists
+const seedDoctor = async () => {
+  try {
+    // Drop existing to guarantee fresh password and correct Doctor profile mapping
+    const existingUser = await User.findOne({ email: 'doctor@hospital.com' });
+    if (existingUser) {
+      await Doctor.deleteMany({ user: existingUser._id });
+      await User.deleteOne({ _id: existingUser._id });
+    }
+    
+    const user = await User.create({
+      name: 'Dr. Sandeep Singh',
+      email: 'doctor@hospital.com',
+      password: 'doctorpassword123',
+      role: 'doctor',
+      phoneNumber: '9876543210',
+      gender: 'Male',
+    });
+    await Doctor.create({
+      user: user._id,
+      specialization: 'General Physician',
+      experience: 12,
+      qualification: 'MBBS, MD (Medicine)',
+    });
+    console.log('Seeded default doctor: doctor@hospital.com / doctorpassword123');
+  } catch (error) {
+    console.error('Error seeding doctor user:', error.message);
+  }
+};
+
+// Seed default patient if none exists
+const seedPatient = async () => {
+  try {
+    const existingUser = await User.findOne({ email: 'patient@hospital.com' });
+    if (existingUser) {
+      await Patient.deleteMany({ user: existingUser._id });
+      await User.deleteOne({ _id: existingUser._id });
+    }
+
+    const user = await User.create({
+      name: 'Amit Kumar',
+      email: 'patient@hospital.com',
+      password: 'patientpassword123',
+      role: 'patient',
+      phoneNumber: '9988776655',
+      gender: 'Male',
+    });
+    await Patient.create({
+      user: user._id,
+      dateOfBirth: new Date('1995-05-15'),
+      bloodType: 'O+',
+      emergencyContact: '9112233445',
+    });
+    console.log('Seeded default patient: patient@hospital.com / patientpassword123');
+  } catch (error) {
+    console.error('Error seeding patient user:', error.message);
+  }
+};
+
+const runSeeders = async () => {
+  await seedAdmin();
+  await seedReceptionist();
+  await seedDoctor();
+  await seedPatient();
+};
+runSeeders();
 
 // Error Handling Middlewares
 app.use(notFound);

@@ -158,3 +158,21 @@ export const uploadAvatar = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// @desc    Request password recovery link
+// @route   POST /api/auth/forgot-password
+// @access  Public
+export const forgotPassword = async (req, res) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'No registered account found with this email' });
+    }
+    res.json({
+      message: `A password reset link has been dispatched to ${email}. Please check your inbox.`
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

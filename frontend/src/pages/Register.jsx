@@ -192,6 +192,20 @@ const Register = () => {
           </button>
         </form>
 
+        <div style={{
+          marginTop: '1.5rem',
+          padding: '0.75rem 1rem',
+          backgroundColor: 'rgba(59, 130, 246, 0.05)',
+          border: '1px dashed rgba(59, 130, 246, 0.2)',
+          borderRadius: 'var(--border-radius)',
+          fontSize: '0.8rem',
+          color: 'var(--text-secondary)',
+          textAlign: 'center',
+          lineHeight: 1.4
+        }}>
+          🛡️ <strong>Clinical Policy Notice:</strong> Online registration is exclusively permitted for Outpatient profiles. Doctor and administrative staff credentials are created and assigned directly by the Hospital Administration.
+        </div>
+
         <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
           Already have an account?{' '}
           <Link to="/login" style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>

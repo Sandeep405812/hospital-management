@@ -821,6 +821,80 @@ const Dashboard = () => {
         )}
       </div>
 
+      {/* Medicine & Doctors Spotlight Section */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem', marginTop: '2rem', marginBottom: '2rem' }}>
+        
+        {/* Medicine Catalog Section */}
+        <div style={{ background: 'var(--glass-bg)', padding: '1.5rem', borderRadius: 'var(--border-radius-lg)', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-md)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>💊</span> <span>Pharmacy Specials</span>
+            </h3>
+            <Link to="/store" style={{ fontSize: '0.85rem', color: 'var(--accent-blue)', fontWeight: 600 }}>Visit E-Store</Link>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {[
+              { name: 'Paracetamol 500mg', price: 40, category: 'Pain & Fever Relief', desc: 'Relief from fevers and mild body aches.' },
+              { name: 'Limcee Vitamin C 500mg', price: 65, category: 'Wellness & Immunity', desc: 'Chewable tablets for daily immunity support.' },
+              { name: 'Torex Cough Syrup 100ml', price: 95, category: 'Cough & Cold', desc: 'Bronchial formula for dry cough relief.' }
+            ].map((med, idx) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', borderRadius: 'var(--border-radius)' }}>
+                <div>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--accent-teal)', fontWeight: 700, textTransform: 'uppercase' }}>{med.category}</span>
+                  <h4 style={{ fontSize: '0.9rem', margin: '0.1rem 0', fontWeight: 700, color: 'var(--text-primary)' }}>{med.name}</h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>{med.desc}</p>
+                </div>
+                <div style={{ textAlign: 'right', minWidth: '75px' }}>
+                  <span style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--accent-teal)', display: 'block' }}>₹{med.price}</span>
+                  <Link to="/store" style={{ fontSize: '0.7rem', color: 'var(--accent-blue)', fontWeight: 700, textDecoration: 'none' }}>Order Now</Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Doctors Card Spotlight Section */}
+        <div style={{ background: 'var(--glass-bg)', padding: '1.5rem', borderRadius: 'var(--border-radius-lg)', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-md)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span>🩺</span> <span>Medical Specialists</span>
+            </h3>
+            {user.role !== 'doctor' ? (
+              <Link to="/doctors" style={{ fontSize: '0.85rem', color: 'var(--accent-blue)', fontWeight: 600 }}>See All Doctors</Link>
+            ) : (
+              <Link to="/patients" style={{ fontSize: '0.85rem', color: 'var(--accent-blue)', fontWeight: 600 }}>See All Patients</Link>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {[
+              { name: 'Dr. Sandeep Singh', specialty: 'General Physician', exp: '12 Yrs Exp', fee: 500, rating: '⭐ 4.9' },
+              { name: 'Dr. Priya Sharma', specialty: 'Pediatrician', exp: '8 Yrs Exp', fee: 600, rating: '⭐ 4.8' },
+              { name: 'Dr. Rajesh Patel', specialty: 'Cardiologist', exp: '15 Yrs Exp', fee: 800, rating: '⭐ 5.0' }
+            ].map((doc, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: '0.75rem', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', borderRadius: 'var(--border-radius)', alignItems: 'center' }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'rgba(59, 130, 246, 0.1)', color: 'var(--accent-blue)', fontSize: '0.9rem', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(59, 130, 246, 0.15)' }}>
+                  {doc.name.split(' ').slice(1).map(n => n[0]).join('') || 'Dr'}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 style={{ fontSize: '0.9rem', margin: 0, fontWeight: 700, color: 'var(--text-primary)' }}>{doc.name}</h4>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--warning)', fontWeight: 700 }}>{doc.rating}</span>
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0.1rem 0' }}>{doc.specialty} • {doc.exp}</p>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.2rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Fee: ₹{doc.fee}</span>
+                    {user.role === 'patient' && (
+                      <Link to="/appointments" style={{ fontSize: '0.7rem', color: 'var(--accent-teal)', fontWeight: 700 }}>Book Consult</Link>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+
       {/* Admin Financial Audit Ledger Section */}
       {user.role === 'admin' && (
         <div className="dashboard-section" style={{ marginTop: '2rem' }}>
