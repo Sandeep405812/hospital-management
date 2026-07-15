@@ -154,31 +154,6 @@ const Login = () => {
             Register here
           </Link>
         </div>
-
-        <div
-          style={{
-            marginTop: '2rem',
-            padding: '0.75rem',
-            backgroundColor: 'rgba(59, 130, 246, 0.05)',
-            border: '1px dashed rgba(59, 130, 246, 0.2)',
-            borderRadius: 'var(--border-radius)',
-            fontSize: '0.8rem',
-            color: 'var(--text-secondary)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.4rem'
-          }}
-        >
-          <div>
-            <strong>Demo Patient Account:</strong> <code>patient@hospital.com</code> / <code>patientpassword123</code>
-          </div>
-          <div>
-            <strong>Demo Doctor Account:</strong> <code>doctor@hospital.com</code> / <code>doctorpassword123</code>
-          </div>
-          <div>
-            <strong>Demo Admin Account:</strong> <code>admin@hospital.com</code> / <code>adminpassword123</code>
-          </div>
-        </div>
       </div>
 
       {/* Simulated Forgot Password Modal */}
