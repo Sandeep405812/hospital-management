@@ -34,6 +34,24 @@ export const protect = async (req, res, next) => {
   }
 };
 
+// Optional auth - attaches req.user if token is present, but doesn't block guests
+export const optionalProtect = async (req, res, next) => {
+  if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    try {
+      const token = req.headers.authorization.split(' ')[1];
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      req.user = await User.findById(decoded.id).select('-password');
+    } catch (error) {
+      // Continue as guest if token is expired/invalid
+      req.user = null;
+    }
+  }
+  next();
+};
+
 // Grant access to specific roles
 export const authorize = (...roles) => {
   return (req, res, next) => {

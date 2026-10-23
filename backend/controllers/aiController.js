@@ -1,7 +1,5 @@
-import fetch from 'node-fetch';
-
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent';
+// Hospital AI Controller (Gemini API + Clinical Database RAG)
+const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash'];
 
 /* ─── Hospital AI System Prompt ─────────────────────────────────────────────
    Builds a context-aware system prompt based on the user's role.
@@ -101,10 +99,13 @@ export const chatWithAI = async (req, res) => {
         parts: [{ text: msg.text }],
       }));
 
+    const role = req.user?.role || userRole || 'patient';
+    const name = req.user?.name || userName || 'Guest';
+
     // Auto-detect Patient ID query if asked by doctor/admin (e.g. PID-1001)
     let patientContextExtra = '';
     const pidMatch = message.match(/PID-\d+/i);
-    if (pidMatch && (userRole === 'doctor' || userRole === 'admin' || userRole === 'receptionist')) {
+    if (pidMatch && (role === 'doctor' || role === 'admin' || role === 'receptionist')) {
       try {
         const Patient = (await import('../models/Patient.js')).default;
         const Appointment = (await import('../models/Appointment.js')).default;
@@ -143,7 +144,7 @@ You MUST summarize this retrieved patient data clearly and professionally for th
       }
     }
 
-    const systemPrompt = buildSystemPrompt(userRole, userName) + patientContextExtra;
+    const systemPrompt = buildSystemPrompt(role, name) + patientContextExtra;
 
     // Add current user message
     conversationHistory.push({
@@ -177,15 +178,13 @@ You MUST summarize this retrieved patient data clearly and professionally for th
       ],
     };
 
-    // Auto-retry with backoff for high-demand spikes
-    const MODEL_NAME = 'gemini-3.8-flash';
-    const MAX_RETRIES = 3;
     let replyText = null;
     let lastErrorMessage = '';
 
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    // Try candidate models in order with automatic failover
+    for (const model of CANDIDATE_MODELS) {
       try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
         const geminiResponse = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -201,21 +200,11 @@ You MUST summarize this retrieved patient data clearly and professionally for th
         } else {
           const errData = await geminiResponse.json().catch(() => ({}));
           lastErrorMessage = errData?.error?.message || `HTTP ${geminiResponse.status}`;
-          console.warn(`[AI Attempt ${attempt}/${MAX_RETRIES}] Gemini response not ok: ${lastErrorMessage}`);
-
-          // If high demand / traffic spike, wait with progressive backoff before retrying
-          if (attempt < MAX_RETRIES) {
-            const waitTime = attempt * 1200; // 1.2s, 2.4s
-            console.log(`Waiting ${waitTime}ms before retry...`);
-            await new Promise((res) => setTimeout(res, waitTime));
-          }
+          console.warn(`[AI Controller] ${model} response not ok (${geminiResponse.status}): ${lastErrorMessage}`);
         }
       } catch (callErr) {
         lastErrorMessage = callErr.message;
-        console.warn(`[AI Attempt ${attempt}] Network error:`, callErr.message);
-        if (attempt < MAX_RETRIES) {
-          await new Promise((res) => setTimeout(res, 1000));
-        }
+        console.warn(`[AI Controller] ${model} network error:`, callErr.message);
       }
     }
 
@@ -223,7 +212,7 @@ You MUST summarize this retrieved patient data clearly and professionally for th
     if (!replyText) {
       if (lastErrorMessage && (lastErrorMessage.includes('high demand') || lastErrorMessage.includes('Spikes'))) {
         return res.json({
-          reply: `Namaste ${userName || ''}! 🙏 AI Clinical servers par abhi temporary traffic spike (high demand) hai. Kripya 10-15 seconds baad dobara try karein ya portal par doctor appointment book karein. 🏥`,
+          reply: `Namaste ${name || ''}! 🙏 AI Clinical servers par abhi temporary high traffic hai. Kripya thodi der baad dobara try karein ya portal se doctor appointment schedule karein. 🏥`,
         });
       }
 
