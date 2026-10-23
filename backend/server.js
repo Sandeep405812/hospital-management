@@ -21,11 +21,15 @@ import settingsRoutes from './routes/settingsRoutes.js';
 import bedRoutes from './routes/bedRoutes.js';
 import surgeryRoutes from './routes/surgeryRoutes.js';
 import dischargeRoutes from './routes/dischargeRoutes.js';
+import aiRoutes from './routes/aiRoutes.js';
+import hospitalRoutes from './routes/hospitalRoutes.js';
 
 // Model imports for seeding
 import User from './models/User.js';
 import Doctor from './models/Doctor.js';
 import Patient from './models/Patient.js';
+import Hospital from './models/Hospital.js';
+
 
 // Load env vars
 dotenv.config();
@@ -164,6 +168,8 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/beds', bedRoutes);
 app.use('/api/beds/discharge-summaries', dischargeRoutes);
 app.use('/api/surgeries', surgeryRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/hospitals', hospitalRoutes);
 
 app.get('/', (req, res) => {
   res.send('Hospital Management System API (with Telemedicine & Uploads) is running...');
@@ -258,6 +264,7 @@ const seedPatient = async () => {
     });
     await Patient.create({
       user: user._id,
+      patientId: 'PID-1001',
       dateOfBirth: new Date('1995-05-15'),
       bloodType: 'O+',
       emergencyContact: '9112233445',
@@ -268,11 +275,76 @@ const seedPatient = async () => {
   }
 };
 
+// Seed default connected hospitals if none exists
+const seedHospitals = async () => {
+  try {
+    const count = await Hospital.countDocuments();
+    if (count === 0) {
+      await Hospital.create([
+        {
+          name: 'CareHMS Apex Super-Specialty Hospital',
+          code: 'HOSP-DELHI',
+          city: 'New Delhi',
+          address: 'Connaught Place Central, New Delhi',
+          contactNumber: '+91 11 2345 6789',
+          isActive: true,
+        },
+        {
+          name: 'CareHMS Metro Health City',
+          code: 'HOSP-MUMBAI',
+          city: 'Mumbai',
+          address: 'Bandra Kurla Complex, Mumbai',
+          contactNumber: '+91 22 9876 5432',
+          isActive: true,
+        },
+        {
+          name: 'CareHMS Regional Care Center',
+          code: 'HOSP-BANGALORE',
+          city: 'Bengaluru',
+          address: 'Indiranagar 100ft Road, Bengaluru',
+          contactNumber: '+91 80 4455 6677',
+          isActive: true,
+        },
+      ]);
+      console.log('Seeded 3 connected multi-hospital branches');
+    }
+  } catch (error) {
+    console.error('Error seeding hospitals:', error.message);
+  }
+};
+
+// Ensure all existing patients have a Unique Patient ID (PID-XXXX)
+const ensurePatientIds = async () => {
+  try {
+    const patients = await Patient.find({
+      $or: [{ patientId: { $exists: false } }, { patientId: null }, { patientId: '' }],
+    });
+    for (let i = 0; i < patients.length; i++) {
+      let uniqueFound = false;
+      let newId = '';
+      while (!uniqueFound) {
+        newId = `PID-${Math.floor(1000 + Math.random() * 9000)}`;
+        const existing = await Patient.findOne({ patientId: newId });
+        if (!existing) uniqueFound = true;
+      }
+      patients[i].patientId = newId;
+      await patients[i].save();
+    }
+    if (patients.length > 0) {
+      console.log(`Assigned unique Patient IDs to ${patients.length} existing patients`);
+    }
+  } catch (error) {
+    console.error('Error ensuring patient IDs:', error.message);
+  }
+};
+
 const runSeeders = async () => {
   await seedAdmin();
   await seedReceptionist();
   await seedDoctor();
   await seedPatient();
+  await seedHospitals();
+  await ensurePatientIds();
 };
 runSeeders();
 

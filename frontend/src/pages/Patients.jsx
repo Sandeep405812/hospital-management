@@ -94,11 +94,13 @@ const Patients = () => {
 
   const filteredPatients = patients.filter((pat) => {
     const name = pat.user?.name || '';
+    const patientId = pat.patientId || '';
     const email = pat.user?.email || '';
     const bloodType = pat.bloodType || '';
     const phone = pat.user?.phoneNumber || '';
     
     return name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+           patientId.toLowerCase().includes(searchQuery.toLowerCase()) ||
            email.toLowerCase().includes(searchQuery.toLowerCase()) ||
            bloodType.toLowerCase().includes(searchQuery.toLowerCase()) ||
            phone.toLowerCase().includes(searchQuery.toLowerCase());
@@ -123,7 +125,7 @@ const Patients = () => {
           type="text"
           className="form-input"
           style={{ margin: 0, width: '100%' }}
-          placeholder="Search patients by name, email, phone or blood group..."
+          placeholder="Search patients by Unique ID (e.g. PID-1001), name, email, phone or blood group..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -133,9 +135,22 @@ const Patients = () => {
         {filteredPatients.length === 0 ? (
           <p style={{ color: 'var(--text-secondary)', padding: '1rem 0' }}>No matching patients registered.</p>
         ) : (
-          <Table headers={['Patient Name', 'Blood Type', 'Date of Birth', 'Emergency Contact', 'Actions']}>
+          <Table headers={['Unique Patient ID', 'Patient Name', 'Blood Type', 'Date of Birth', 'Emergency Contact', 'Actions']}>
             {filteredPatients.map((pat) => (
               <tr key={pat._id}>
+                <td>
+                  <span style={{
+                    background: 'rgba(20, 184, 166, 0.15)',
+                    color: 'var(--accent-teal)',
+                    border: '1px solid rgba(20, 184, 166, 0.35)',
+                    padding: '0.2rem 0.5rem',
+                    borderRadius: '6px',
+                    fontWeight: 800,
+                    fontSize: '0.82rem'
+                  }}>
+                    {pat.patientId || 'PID-PENDING'}
+                  </span>
+                </td>
                 <td>
                   <div style={{ fontWeight: 600, fontSize: '1.05rem' }}>{pat.user?.name}</div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.15rem', marginTop: '0.25rem' }}>

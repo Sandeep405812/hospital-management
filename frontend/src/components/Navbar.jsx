@@ -12,7 +12,21 @@ const Navbar = ({ title, onMenuClick }) => {
   const [bellOpen, setBellOpen] = React.useState(false);
   const [shakeBell, setShakeBell] = React.useState(false);
   const [timeStr, setTimeStr] = React.useState('');
+  const [hospitals, setHospitals] = React.useState([]);
+  const [activeHospital, setActiveHospital] = React.useState(
+    localStorage.getItem('selected_hospital_branch') || 'HOSP-DELHI'
+  );
   const searchInputRef = React.useRef(null);
+
+  React.useEffect(() => {
+    // Fetch connected hospital branches
+    fetch(`${BACKEND_URL}/api/hospitals`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) setHospitals(data);
+      })
+      .catch(() => {});
+  }, []);
 
   // Live Date-Time Clock
   React.useEffect(() => {
@@ -153,6 +167,46 @@ const Navbar = ({ title, onMenuClick }) => {
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--text-primary)', lineHeight: 1.2 }}>{title || 'CareHMS'}</div>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>{getBreadcrumbs()}</div>
+        </div>
+
+        {/* Multi-Hospital Connected Branch Switcher */}
+        <div style={{ marginLeft: '1rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>
+            🏥 Branch:
+          </span>
+          <select
+            value={activeHospital}
+            onChange={(e) => {
+              setActiveHospital(e.target.value);
+              localStorage.setItem('selected_hospital_branch', e.target.value);
+            }}
+            style={{
+              background: 'rgba(59, 130, 246, 0.1)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              color: 'var(--accent-blue)',
+              borderRadius: '6px',
+              padding: '0.25rem 0.6rem',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              outline: 'none'
+            }}
+            title="Connected Hospital Network"
+          >
+            {hospitals.length > 0 ? (
+              hospitals.map(h => (
+                <option key={h._id} value={h.code} style={{ background: '#0f172a', color: '#fff' }}>
+                  {h.name} ({h.city})
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="HOSP-DELHI" style={{ background: '#0f172a', color: '#fff' }}>CareHMS Apex Central (New Delhi)</option>
+                <option value="HOSP-MUMBAI" style={{ background: '#0f172a', color: '#fff' }}>CareHMS Metro City (Mumbai)</option>
+                <option value="HOSP-BLR" style={{ background: '#0f172a', color: '#fff' }}>CareHMS Tech Campus (Bengaluru)</option>
+              </>
+            )}
+          </select>
         </div>
       </div>
 

@@ -17,6 +17,14 @@ const appointmentSchema = new mongoose.Schema(
       ref: 'Department',
       required: true,
     },
+    hospital: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Hospital',
+    },
+    serialNumber: {
+      type: Number,
+      default: 1,
+    },
     date: {
       type: Date,
       required: [true, 'Please add an appointment date'],

@@ -79,3 +79,53 @@ export const updatePatient = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// @desc    Get complete patient history by Unique Patient ID (PID-XXXX)
+// @route   GET /api/patients/history/:patientId
+// @access  Private/Admin/Doctor
+export const getPatientHistoryByUniqueId = async (req, res) => {
+  try {
+    const { patientId } = req.params;
+
+    // Search by unique patientId (case-insensitive or exact)
+    const patient = await Patient.findOne({
+      $or: [
+        { patientId: patientId.trim() },
+        { patientId: patientId.trim().toUpperCase() }
+      ]
+    }).populate('user', 'name email phoneNumber gender avatar');
+
+    if (!patient) {
+      return res.status(404).json({ message: `Patient with ID ${patientId} not found` });
+    }
+
+    // Dynamic imports for related models to avoid circular dependencies
+    const Appointment = (await import('../models/Appointment.js')).default;
+    const Prescription = (await import('../models/Prescription.js')).default;
+    const Report = (await import('../models/Report.js')).default;
+
+    const [appointments, prescriptions, reports] = await Promise.all([
+      Appointment.find({ patient: patient._id })
+        .populate('doctor', 'specialization')
+        .populate({ path: 'doctor', populate: { path: 'user', select: 'name' } })
+        .populate('department', 'name')
+        .sort({ date: -1 }),
+      Prescription.find({ patient: patient._id })
+        .populate({ path: 'doctor', populate: { path: 'user', select: 'name' } })
+        .sort({ createdAt: -1 }),
+      Report.find({ patient: patient._id })
+        .populate({ path: 'doctor', populate: { path: 'user', select: 'name' } })
+        .sort({ createdAt: -1 }),
+    ]);
+
+    res.json({
+      patient,
+      appointments,
+      prescriptions,
+      reports,
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+

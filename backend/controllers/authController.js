@@ -34,9 +34,14 @@ export const registerUser = async (req, res) => {
     });
 
     if (user) {
+      // Generate Unique Patient ID (e.g., PID-849201)
+      const count = await Patient.countDocuments();
+      const patientId = `PID-${1000 + count + 1}`;
+
       // Create corresponding Patient record
       const patient = await Patient.create({
         user: user._id,
+        patientId,
         dateOfBirth: dateOfBirth || new Date(),
         bloodType: bloodType || 'O+',
         emergencyContact: emergencyContact || 'N/A',

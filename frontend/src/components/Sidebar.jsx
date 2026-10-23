@@ -133,13 +133,6 @@ const Sidebar = ({ isOpen, onClose }) => {
       group: 'management'
     },
     {
-      to: '/store',
-      label: t('medicalStore'),
-      icon: <ShoppingBag size={20} />,
-      roles: ['admin', 'doctor', 'patient', 'receptionist'],
-      group: 'management'
-    },
-    {
       to: '/billing',
       label: t('billingInvoices'),
       icon: <CreditCard size={20} />,

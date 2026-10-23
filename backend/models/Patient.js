@@ -7,6 +7,16 @@ const patientSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    patientId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+    },
+    hospital: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Hospital',
+    },
     dateOfBirth: {
       type: Date,
       required: [true, 'Please add date of birth'],

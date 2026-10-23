@@ -10,6 +10,7 @@ import gsap from 'gsap';
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
 import WhatsappSimulator from './components/WhatsappSimulator';
+import HospitalAIAssistant from './components/HospitalAIAssistant';
 
 // Pages
 import Login from './pages/Login';
@@ -31,7 +32,6 @@ import Beds from './pages/Beds';
 import SurgerySchedule from './pages/SurgerySchedule';
 import WaitingRoom from './pages/WaitingRoom';
 import Inventory from './pages/Inventory';
-import MedicalStore from './pages/MedicalStore';
 import { LanguageProvider } from './context/LanguageContext';
 
 // Protected Route Guard
@@ -282,6 +282,7 @@ const DashboardLayout = () => {
       )}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <WhatsappSimulator />
+      <HospitalAIAssistant />
       <div className="main-content">
         <Navbar onMenuClick={() => setSidebarOpen(true)} />
         <div className="page-transition-wrapper" style={{ marginTop: '1.5rem' }}>
@@ -346,7 +347,6 @@ function App() {
               <Route path="/departments" element={<Departments />} />
               <Route path="/beds" element={<Beds />} />
               <Route path="/inventory" element={<Inventory />} />
-              <Route path="/store" element={<MedicalStore />} />
 
               {/* Admin, Doctor & Receptionist only */}
               <Route element={<ProtectedRoute allowedRoles={['admin', 'doctor', 'receptionist']} />}>

@@ -41,6 +41,13 @@ export const createAppointment = async (req, res) => {
       });
     }
 
+    // Calculate Serial Number (FIFO) for this doctor on this day
+    const existingCount = await Appointment.countDocuments({
+      doctor: doctor._id,
+      date: { $gte: startOfDay, $lte: endOfDay },
+    });
+    const serialNumber = existingCount + 1;
+
     // Create the appointment
     const appointment = await Appointment.create({
       patient: patient._id,
@@ -50,6 +57,7 @@ export const createAppointment = async (req, res) => {
       timeSlot,
       symptoms,
       fee: doctor.consultationFee,
+      serialNumber,
     });
 
     if (appointment) {
@@ -79,12 +87,13 @@ export const createAppointment = async (req, res) => {
   }
 };
 
-// @desc    Get all appointments (Filtered by role)
+// @desc    Get all appointments (Filtered by role and date range)
 // @route   GET /api/appointments
 // @access  Private
 export const getAppointments = async (req, res) => {
   try {
     let query = {};
+    const { startDate, endDate, patientId } = req.query;
 
     // Filter appointments based on user role
     if (req.user.role === 'patient') {
@@ -95,9 +104,35 @@ export const getAppointments = async (req, res) => {
       if (doctor) query.doctor = doctor._id;
     }
 
+    // Date range filter support
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) {
+        const s = new Date(startDate);
+        s.setHours(0, 0, 0, 0);
+        query.date.$gte = s;
+      }
+      if (endDate) {
+        const e = new Date(endDate);
+        e.setHours(23, 59, 59, 999);
+        query.date.$lte = e;
+      }
+    }
+
+    // Filter by patient ID if passed (for doctor/admin)
+    if (patientId) {
+      const patientDoc = await Patient.findOne({ patientId: patientId.trim() });
+      if (patientDoc) {
+        query.patient = patientDoc._id;
+      } else {
+        return res.json([]);
+      }
+    }
+
     const appointments = await Appointment.find(query)
       .populate({
         path: 'patient',
+        select: 'patientId dateOfBirth bloodType allergies medicalHistory emergencyContact',
         populate: { path: 'user', select: 'name email phoneNumber gender avatar' },
       })
       .populate({
@@ -105,7 +140,7 @@ export const getAppointments = async (req, res) => {
         populate: { path: 'user', select: 'name email avatar' },
       })
       .populate('department', 'name')
-      .sort({ date: 1, timeSlot: 1 });
+      .sort({ date: 1, serialNumber: 1, createdAt: 1 });
 
     // Calculate queue position and estimated wait times dynamically
     const appointmentsWithQueue = await Promise.all(
