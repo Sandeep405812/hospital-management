@@ -164,7 +164,7 @@ export const uploadAvatar = async (req, res) => {
   }
 };
 
-// @desc    Request password recovery link
+// @desc    Verify account for password recovery
 // @route   POST /api/auth/forgot-password
 // @access  Public
 export const forgotPassword = async (req, res) => {
@@ -175,7 +175,37 @@ export const forgotPassword = async (req, res) => {
       return res.status(404).json({ message: 'No registered account found with this email' });
     }
     res.json({
-      message: `A password reset link has been dispatched to ${email}. Please check your inbox.`
+      success: true,
+      email: user.email,
+      name: user.name,
+      message: `Account verified for ${user.name}. You may now set a new password.`
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Reset password with new password
+// @route   POST /api/auth/reset-password
+// @access  Public
+export const resetPassword = async (req, res) => {
+  const { email, newPassword } = req.body;
+  try {
+    if (!newPassword || newPassword.length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters long' });
+    }
+
+    const user = await User.findOne({ email }).select('+password');
+    if (!user) {
+      return res.status(404).json({ message: 'Account not found' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password has been reset successfully! You can now sign in with your new password.'
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
