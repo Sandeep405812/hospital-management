@@ -6,12 +6,10 @@ import User from '../models/User.js';
 export const getAllStaff = async (req, res) => {
   try {
     const staffRoles = [
-      'superadmin',
       'admin',
       'admin_doctors',
       'admin_staff',
       'admin_helpdesk',
-      'admin_beds',
       'doctor',
       'receptionist',
     ];
@@ -29,10 +27,9 @@ export const getAllStaff = async (req, res) => {
 // Helper to resolve adminType enum safely
 const resolveAdminType = (role, explicitType) => {
   if (explicitType) return explicitType;
-  if (role === 'superadmin') return 'super_admin';
+  if (role === 'admin') return 'general_admin';
   if (role === 'admin_doctors') return 'doctor_manager';
   if (role === 'admin_staff') return 'staff_manager';
-  if (role === 'admin_beds') return 'bed_manager';
   if (role === 'admin_helpdesk') return 'helpdesk_manager';
   if (role?.startsWith('admin_')) return role.replace('admin_', '') + '_manager';
   return 'none';
@@ -40,7 +37,7 @@ const resolveAdminType = (role, explicitType) => {
 
 // @desc    Create a new staff member or specialized sub-admin
 // @route   POST /api/staff
-// @access  Private (Super Admin / Admin)
+// @access  Private (Admin)
 export const createStaffMember = async (req, res) => {
   try {
     const { name, email, password, role, department, adminType, phoneNumber, gender } = req.body;
@@ -51,9 +48,9 @@ export const createStaffMember = async (req, res) => {
       return res.status(400).json({ message: 'User with this email already exists' });
     }
 
-    // Only Superadmin can create other admins or superadmins
-    if ((role === 'superadmin' || role === 'admin' || role.startsWith('admin_')) && req.user.role !== 'superadmin' && req.user.role !== 'admin') {
-      return res.status(403).json({ message: 'Only Super Admin can assign administrative roles' });
+    // Only Admin can create other admins or staff
+    if ((role === 'admin' || role.startsWith('admin_')) && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Only Admin can assign administrative roles' });
     }
 
     const calculatedAdminType = resolveAdminType(role, adminType);
@@ -100,11 +97,6 @@ export const updateStaffMember = async (req, res) => {
       return res.status(404).json({ message: 'Staff member not found' });
     }
 
-    // Prevent modifying Super Admin if not Super Admin themselves
-    if (staff.role === 'superadmin' && req.user.role !== 'superadmin') {
-      return res.status(403).json({ message: 'Cannot modify Super Admin accounts' });
-    }
-
     if (name) staff.name = name;
     if (role) {
       staff.role = role;
@@ -133,8 +125,9 @@ export const deleteStaffMember = async (req, res) => {
       return res.status(404).json({ message: 'Staff member not found' });
     }
 
-    if (staff.role === 'superadmin') {
-      return res.status(403).json({ message: 'Cannot delete Super Admin account' });
+    // Prevent deleting own account
+    if (staff._id.toString() === req.user._id.toString()) {
+      return res.status(400).json({ message: 'Cannot delete your own admin account' });
     }
 
     await User.findByIdAndDelete(req.params.id);

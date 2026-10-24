@@ -574,8 +574,111 @@ const Appointments = () => {
         </div>
       </div>
 
+      {/* ─── PATIENT ACTIVE VIDEO CONSULTATION CALL ALERT ─── */}
+      {user.role === 'patient' && (() => {
+        const activeCall = appointments.find((a) => a.status === 'ongoing');
+        const nextCall = appointments.find((a) => ['approved', 'waiting', 'pending'].includes(a.status));
+
+        if (activeCall) {
+          return (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.25) 0%, rgba(20, 184, 166, 0.2) 100%)',
+              border: '2px solid var(--accent-teal)',
+              borderRadius: 'var(--border-radius)',
+              padding: '1.25rem 1.5rem',
+              marginBottom: '1.5rem',
+              boxShadow: '0 0 25px rgba(20, 184, 166, 0.35)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '1rem',
+              animation: 'pulse 1.8s infinite'
+            }}>
+              <div>
+                <span style={{
+                  display: 'inline-block',
+                  backgroundColor: 'var(--accent-teal)',
+                  color: '#042f2e',
+                  fontSize: '0.72rem',
+                  fontWeight: 900,
+                  padding: '0.2rem 0.6rem',
+                  borderRadius: '9999px',
+                  marginBottom: '0.35rem',
+                  letterSpacing: '0.5px'
+                }}>
+                  CALL IS LIVE NOW
+                </span>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#fff' }}>
+                  Dr. {activeCall.doctor?.user?.name || 'Physician'} is Ready for Token #{activeCall.serialNumber}!
+                </h3>
+                <p style={{ margin: '0.2rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.88rem' }}>
+                  Your appointment slot is active. Please join the video room now for your online consultation.
+                </p>
+              </div>
+
+              <Link
+                to={`/appointments/${activeCall._id}/call`}
+                className="btn btn-teal"
+                style={{
+                  padding: '0.85rem 1.6rem',
+                  fontSize: '1rem',
+                  fontWeight: 800,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  boxShadow: '0 4px 15px rgba(20, 184, 166, 0.4)'
+                }}
+              >
+                <Video size={20} />
+                <span>Join Video Consultation Now</span>
+              </Link>
+            </div>
+          );
+        }
+
+        if (nextCall) {
+          return (
+            <div style={{
+              background: 'rgba(30, 41, 59, 0.6)',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+              borderRadius: 'var(--border-radius)',
+              padding: '1rem 1.25rem',
+              marginBottom: '1.5rem',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '1rem'
+            }}>
+              <div>
+                <span style={{ fontSize: '0.75rem', color: 'var(--accent-blue)', fontWeight: 700, textTransform: 'uppercase' }}>
+                  Confirmed OPD Booking · Token #{nextCall.serialNumber}
+                </span>
+                <h4 style={{ margin: '0.15rem 0 0 0', fontSize: '1.05rem', fontWeight: 700, color: '#fff' }}>
+                  Consultation with Dr. {nextCall.doctor?.user?.name || 'Doctor'}
+                </h4>
+                <p style={{ margin: '0.15rem 0 0 0', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
+                  Date: {new Date(nextCall.date).toLocaleDateString()} · Window: {nextCall.timeSlot}
+                </p>
+              </div>
+              <Link
+                to={`/appointments/${nextCall._id}/call`}
+                className="btn btn-secondary btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}
+              >
+                <Video size={15} />
+                <span>Enter Video Room / Lobby</span>
+              </Link>
+            </div>
+          );
+        }
+
+        return null;
+      })()}
+
       {/* ─── DOCTOR OPD CONSULTATION DESK & AUTO CALL CONSOLE ─── */}
-      {(user.role === 'doctor' || user.role === 'admin' || user.role === 'superadmin' || user.role?.startsWith('admin_') || user.role === 'receptionist') && (
+      {(user.role === 'doctor' || user.role === 'admin' || user.role?.startsWith('admin_') || user.role === 'receptionist') && (
         <div style={{
           background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%)',
           border: '1.5px solid rgba(59, 130, 246, 0.35)',

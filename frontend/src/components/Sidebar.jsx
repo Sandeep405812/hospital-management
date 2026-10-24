@@ -90,7 +90,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       to: '/queue-tv',
       label: 'Live OPD TV',
       icon: <Tv size={20} />,
-      roles: ['superadmin', 'admin', 'admin_doctors', 'admin_helpdesk', 'doctor', 'receptionist'],
+      roles: ['admin', 'admin_doctors', 'admin_helpdesk', 'doctor', 'receptionist'],
       group: 'management'
     },
     {
@@ -118,27 +118,6 @@ const Sidebar = ({ isOpen, onClose }) => {
       to: '/patients',
       label: t('patients'),
       icon: <Users size={20} />,
-      roles: ['admin', 'doctor', 'receptionist'],
-      group: 'management'
-    },
-    {
-      to: '/beds',
-      label: t('beds'),
-      icon: <Layers size={20} />,
-      roles: ['admin', 'doctor', 'patient', 'receptionist'],
-      group: 'management'
-    },
-    {
-      to: '/surgery-schedule',
-      label: t('surgeries'),
-      icon: <Calendar size={20} />,
-      roles: ['admin', 'doctor', 'receptionist'],
-      group: 'management'
-    },
-    {
-      to: '/inventory',
-      label: t('inventoryStock'),
-      icon: <Package size={20} />,
       roles: ['admin', 'doctor', 'receptionist'],
       group: 'management'
     },
@@ -172,9 +151,9 @@ const Sidebar = ({ isOpen, onClose }) => {
     },
     {
       to: '/staff',
-      label: 'Staff & Admins',
+      label: 'Staff Management',
       icon: <ShieldCheck size={20} />,
-      roles: ['superadmin', 'admin', 'admin_staff'],
+      roles: ['admin', 'admin_staff'],
       group: 'system'
     },
     {
@@ -187,8 +166,8 @@ const Sidebar = ({ isOpen, onClose }) => {
   ];
 
   const filteredLinks = links.filter((link) => {
-    // Clean, focused navigation for Super Admin and General Admin (no patient clutter)
-    if (user.role === 'superadmin' || user.role === 'admin') {
+    // Clean, focused navigation for Administrator (no patient clutter)
+    if (user.role === 'admin') {
       const allowedAdminRoutes = [
         '/dashboard',
         '/staff',
@@ -196,7 +175,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         '/patients',
         '/appointments',
         '/queue-tv',
-        '/beds',
+        '/prescriptions',
         '/billing',
         '/departments',
         '/profile'
@@ -208,9 +187,6 @@ const Sidebar = ({ isOpen, onClose }) => {
       if (link.to === '/dashboard' || link.to === '/profile') return true;
       if (user.role === 'admin_doctors') {
         return ['/dashboard', '/doctors', '/departments', '/appointments', '/queue-tv', '/profile'].includes(link.to);
-      }
-      if (user.role === 'admin_beds') {
-        return ['/dashboard', '/beds', '/patients', '/profile'].includes(link.to);
       }
       if (user.role === 'admin_helpdesk') {
         return ['/dashboard', '/appointments', '/queue-tv', '/patients', '/billing', '/profile'].includes(link.to);

@@ -23,14 +23,10 @@ import Billing from './pages/Billing';
 import Departments from './pages/Departments';
 import Profile from './pages/Profile';
 import CallRoom from './pages/CallRoom';
-import Checkout from './pages/Checkout';
 import Reports from './pages/Reports';
 import Metrics from './pages/Metrics';
 import SymptomChecker from './pages/SymptomChecker';
-import Beds from './pages/Beds';
-import SurgerySchedule from './pages/SurgerySchedule';
 import WaitingRoom from './pages/WaitingRoom';
-import Inventory from './pages/Inventory';
 import StaffManagement from './pages/StaffManagement';
 import OpdQueueTv from './pages/OpdQueueTv';
 import { LanguageProvider } from './context/LanguageContext';
@@ -47,12 +43,11 @@ const ProtectedRoute = ({ allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Superadmin and Admin have universal clearance across all staff/patient portals
-  const isSuperUser = user.role === 'superadmin' || user.role === 'admin';
+  // Admin has universal clearance across all staff/patient portals
+  const isSuperUser = user.role === 'admin';
   const isDomainAdminAllowed = allowedRoles && (
     (user.role.startsWith('admin_') && allowedRoles.includes('admin')) ||
     (user.role === 'admin_doctors' && (allowedRoles.includes('doctor') || allowedRoles.includes('doctors'))) ||
-    (user.role === 'admin_beds' && (allowedRoles.includes('receptionist') || allowedRoles.includes('beds'))) ||
     (user.role === 'admin_helpdesk' && allowedRoles.includes('receptionist')) ||
     (user.role === 'admin_staff' && allowedRoles.includes('staff'))
   );
@@ -115,11 +110,71 @@ const DashboardLayout = () => {
       setIncomingCall(null);
     });
 
+    // Listen for doctor admitting patient into consultation room
+    socket.on('patient-admitted', ({ roomId, appointmentId, serialNumber }) => {
+      if (user?.role === 'patient') {
+        setIncomingCall({
+          roomId: appointmentId || roomId,
+          doctorName: `Doctor (Calling Token #${serialNumber || 'Next'})`
+        });
+      }
+    });
+
     return () => {
       socket.disconnect();
       globalSocketRef.current = null;
     };
   }, [user]);
+
+  // Audible Web Audio Ringtone Generator for Incoming Consultations
+  React.useEffect(() => {
+    if (!incomingCall) return;
+
+    let ringInterval = null;
+    let audioCtx = null;
+
+    try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) {
+        audioCtx = new AudioContextClass();
+        const playRingBurst = () => {
+          if (!audioCtx || audioCtx.state === 'closed') return;
+          const osc1 = audioCtx.createOscillator();
+          const osc2 = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(440, audioCtx.currentTime); // 440 Hz
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(480, audioCtx.currentTime); // 480 Hz
+
+          gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(audioCtx.destination);
+
+          osc1.start(audioCtx.currentTime);
+          osc1.stop(audioCtx.currentTime + 1.2);
+          osc2.start(audioCtx.currentTime);
+          osc2.stop(audioCtx.currentTime + 1.2);
+        };
+
+        playRingBurst();
+        ringInterval = setInterval(playRingBurst, 3200);
+      }
+    } catch (e) {
+      console.warn('Audio ringtone synth error:', e);
+    }
+
+    return () => {
+      if (ringInterval) clearInterval(ringInterval);
+      if (audioCtx && audioCtx.state !== 'closed') {
+        audioCtx.close().catch(() => {});
+      }
+    };
+  }, [incomingCall]);
 
   React.useEffect(() => {
     if (incomingCall) {
@@ -357,24 +412,16 @@ function App() {
               <Route path="/profile" element={<Profile />} />
               <Route path="/prescriptions" element={<Prescriptions />} />
               <Route path="/departments" element={<Departments />} />
-              <Route path="/beds" element={<Beds />} />
-              <Route path="/inventory" element={<Inventory />} />
 
-              {/* Super Admin & Staff Managers */}
-              <Route element={<ProtectedRoute allowedRoles={['superadmin', 'admin', 'admin_staff']} />}>
+              {/* Admin & Staff Managers */}
+              <Route element={<ProtectedRoute allowedRoles={['admin', 'admin_staff']} />}>
                 <Route path="/staff" element={<StaffManagement />} />
-              </Route>
-
-              {/* Admin, Doctor & Receptionist only */}
-              <Route element={<ProtectedRoute allowedRoles={['admin', 'doctor', 'receptionist']} />}>
-                <Route path="/surgery-schedule" element={<SurgerySchedule />} />
               </Route>
 
               {/* Admin, Patient & Receptionist only */}
               <Route element={<ProtectedRoute allowedRoles={['admin', 'patient', 'receptionist']} />}>
                 <Route path="/doctors" element={<Doctors />} />
                 <Route path="/billing" element={<Billing />} />
-                <Route path="/billing/:id/checkout" element={<Checkout />} />
               </Route>
 
               {/* Patient only */}
@@ -382,11 +429,6 @@ function App() {
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/metrics" element={<Metrics />} />
                 <Route path="/symptom-checker" element={<SymptomChecker />} />
-              </Route>
-
-              {/* Super Admin & Staff Managers */}
-              <Route element={<ProtectedRoute allowedRoles={['superadmin', 'admin', 'admin_staff']} />}>
-                <Route path="/staff" element={<StaffManagement />} />
               </Route>
 
               {/* Admin, Doctor & Receptionist only */}

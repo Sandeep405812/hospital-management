@@ -25,12 +25,10 @@ const userSchema = new mongoose.Schema(
     role: {
       type: String,
       enum: [
-        'superadmin',
         'admin',
         'admin_doctors',
         'admin_staff',
         'admin_helpdesk',
-        'admin_beds',
         'doctor',
         'patient',
         'receptionist',

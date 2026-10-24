@@ -124,8 +124,7 @@ const Navbar = ({ title, onMenuClick }) => {
     if (path === '/metrics') return 'Home / Health Tracker';
     if (path === '/doctors') return 'Home / Doctors';
     if (path === '/patients') return 'Home / Patients';
-    if (path === '/beds') return 'Home / Ward Bed Map';
-    if (path === '/surgery-schedule') return 'Home / Surgery Schedule';
+    if (path === '/queue-tv') return 'Home / Live OPD TV Screen';
     if (path === '/prescriptions') return 'Home / Prescriptions';
     if (path === '/billing') return 'Home / Billing & Invoices';
     if (path === '/reports') return 'Home / Medical Reports';

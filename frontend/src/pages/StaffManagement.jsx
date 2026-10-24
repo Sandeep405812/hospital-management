@@ -182,18 +182,14 @@ const StaffManagement = () => {
   // Role metadata helper
   const getRoleDetails = (role) => {
     switch (role) {
-      case 'superadmin':
-        return { label: 'Super Admin (Director)', color: '#ec4899', bg: 'rgba(236, 72, 153, 0.15)', icon: ShieldCheck };
       case 'admin_doctors':
         return { label: 'Doctor Manager', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.15)', icon: Stethoscope };
-      case 'admin_beds':
-        return { label: 'Bed & Ward Manager', color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)', icon: Bed };
       case 'admin_helpdesk':
         return { label: 'Helpdesk Manager', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)', icon: Headphones };
       case 'admin_staff':
         return { label: 'Staff & HR Manager', color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.15)', icon: Briefcase };
       case 'admin':
-        return { label: 'System Admin', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)', icon: ShieldCheck };
+        return { label: 'Hospital Admin', color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)', icon: ShieldCheck };
       case 'receptionist':
         return { label: 'Front Desk / Reception', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.15)', icon: Users };
       case 'doctor':
@@ -214,9 +210,8 @@ const StaffManagement = () => {
   });
 
   // Role Counts
-  const countSuper = staffList.filter((s) => s.role === 'superadmin').length;
+  const countAdmin = staffList.filter((s) => s.role === 'admin').length;
   const countDocAdmin = staffList.filter((s) => s.role === 'admin_doctors').length;
-  const countBedAdmin = staffList.filter((s) => s.role === 'admin_beds').length;
   const countHelpdesk = staffList.filter((s) => s.role === 'admin_helpdesk').length;
   const countStaffAdmin = staffList.filter((s) => s.role === 'admin_staff').length;
 
@@ -225,9 +220,9 @@ const StaffManagement = () => {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 className="page-title">Hospital Staff & Administrator Command Center</h1>
-          <p className="page-subtitle">Super Admin control center to manage specialized Domain Admins, Doctors, and Staff</p>
+          <p className="page-subtitle">Hospital Admin control center to manage specialized Domain Admins, Doctors, and Staff</p>
         </div>
-        {(user?.role === 'superadmin' || user?.role === 'admin') && (
+        {user?.role === 'admin' && (
           <button
             className="btn btn-teal"
             onClick={() => setShowAddModal(true)}
@@ -241,12 +236,12 @@ const StaffManagement = () => {
 
       {/* Domain Role Metric Cards */}
       <div className="dashboard-grid" style={{ marginBottom: '1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-        <div className="stat-card" style={{ borderLeft: '4px solid #ec4899' }}>
+        <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
           <div className="stat-info">
-            <p>Super Admins</p>
-            <h3 style={{ color: '#ec4899' }}>{countSuper}</h3>
+            <p>Hospital Admins</p>
+            <h3 style={{ color: '#3b82f6' }}>{countAdmin}</h3>
           </div>
-          <div className="stat-icon" style={{ backgroundColor: 'rgba(236, 72, 153, 0.15)', color: '#ec4899' }}>
+          <div className="stat-icon" style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6' }}>
             <ShieldCheck size={24} />
           </div>
         </div>
@@ -258,16 +253,6 @@ const StaffManagement = () => {
           </div>
           <div className="stat-icon" style={{ backgroundColor: 'rgba(14, 165, 233, 0.15)', color: '#0ea5e9' }}>
             <Stethoscope size={24} />
-          </div>
-        </div>
-
-        <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
-          <div className="stat-info">
-            <p>Bed & Ward Managers</p>
-            <h3 style={{ color: '#10b981' }}>{countBedAdmin}</h3>
-          </div>
-          <div className="stat-icon" style={{ backgroundColor: 'rgba(16, 185, 129, 0.15)', color: '#10b981' }}>
-            <Bed size={24} />
           </div>
         </div>
 
@@ -297,8 +282,8 @@ const StaffManagement = () => {
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           {[
             { label: 'All Personnel', val: 'All' },
+            { label: 'Admins', val: 'admin' },
             { label: 'Doctor Managers', val: 'admin_doctors' },
-            { label: 'Bed Managers', val: 'admin_beds' },
             { label: 'Helpdesk Admins', val: 'admin_helpdesk' },
             { label: 'Staff Admins', val: 'admin_staff' },
             { label: 'Receptionists', val: 'receptionist' },
@@ -354,7 +339,7 @@ const StaffManagement = () => {
               filteredStaff.map((staff) => {
                 const meta = getRoleDetails(staff.role);
                 const IconComponent = meta.icon;
-                const isSuper = staff.role === 'superadmin';
+                const isSelf = staff._id === user?._id;
 
                 return (
                   <tr key={staff._id}>
@@ -432,7 +417,7 @@ const StaffManagement = () => {
                     </td>
 
                     <td>
-                      {!isSuper && (
+                      {!isSelf && (
                         <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                           <button
                             className="btn btn-secondary btn-sm"
@@ -529,15 +514,11 @@ const StaffManagement = () => {
                     required
                   >
                     <option value="admin_doctors">🩺 Doctor & Department Manager</option>
-                    <option value="admin_beds">🛏️ Bed & Ward Logistics Manager</option>
                     <option value="admin_helpdesk">🎧 Helpdesk & Reception Head</option>
                     <option value="admin_staff">💼 Staff & HR Operations Manager</option>
                     <option value="receptionist">👥 Front Desk Receptionist</option>
                     <option value="doctor">👨‍⚕️ Medical Doctor</option>
-                    <option value="admin">🛡️ General System Admin</option>
-                    {user?.role === 'superadmin' && (
-                      <option value="superadmin">👑 Super Admin (Director Clearance)</option>
-                    )}
+                    <option value="admin">🛡️ Hospital Administrator</option>
                   </select>
                 </div>
 

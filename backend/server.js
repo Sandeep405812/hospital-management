@@ -101,32 +101,80 @@ io.on('connection', (socket) => {
   });
 
   // User joins the virtual consultation room corresponding to their Appointment ID
-  socket.on('join-room', ({ roomId, userId, userName }) => {
+  socket.on('join-room', ({ roomId, userId, userName, role }) => {
     socket.join(roomId);
-    console.log(`User ${userName} (${userId}) joined room ${roomId}`);
+    socket.roomId = roomId;
+    socket.userName = userName;
+    socket.userRole = role;
+    console.log(`User ${userName} (${userId}, role: ${role}) joined room ${roomId}`);
     
-    // Notify other peer in the room
-    socket.to(roomId).emit('user-joined', { userId, userName, socketId: socket.id });
+    // Get list of existing peers in this room
+    const room = io.sockets.adapter.rooms.get(roomId);
+    const existingPeers = [];
+    if (room) {
+      for (const socketId of room) {
+        if (socketId !== socket.id) {
+          const s = io.sockets.sockets.get(socketId);
+          existingPeers.push({
+            socketId,
+            userName: s?.userName || 'Peer',
+            userRole: s?.userRole || 'participant'
+          });
+        }
+      }
+    }
+
+    // Inform the newly joined socket of existing peers
+    socket.emit('room-peers', { peers: existingPeers });
+
+    // Notify other peers in the room
+    socket.to(roomId).emit('user-joined', {
+      userId,
+      userName,
+      userRole: role,
+      socketId: socket.id
+    });
   });
 
-  // Relay WebRTC Offer
-  socket.on('offer', ({ roomId, sdp }) => {
-    socket.to(roomId).emit('offer', { sdp });
+  // Relay WebRTC Offer (targeted to peer socket to prevent cross-peer collisions)
+  socket.on('offer', ({ roomId, sdp, targetSocketId }) => {
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('offer', { sdp, senderSocketId: socket.id });
+    } else {
+      socket.to(roomId).emit('offer', { sdp, senderSocketId: socket.id });
+    }
   });
 
   // Relay WebRTC Answer
-  socket.on('answer', ({ roomId, sdp }) => {
-    socket.to(roomId).emit('answer', { sdp });
+  socket.on('answer', ({ roomId, sdp, targetSocketId }) => {
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('answer', { sdp, senderSocketId: socket.id });
+    } else {
+      socket.to(roomId).emit('answer', { sdp, senderSocketId: socket.id });
+    }
   });
 
   // Relay WebRTC ICE Candidates
-  socket.on('ice-candidate', ({ roomId, candidate }) => {
-    socket.to(roomId).emit('ice-candidate', { candidate });
+  socket.on('ice-candidate', ({ roomId, candidate, targetSocketId }) => {
+    if (targetSocketId) {
+      io.to(targetSocketId).emit('ice-candidate', { candidate, senderSocketId: socket.id });
+    } else {
+      socket.to(roomId).emit('ice-candidate', { candidate, senderSocketId: socket.id });
+    }
+  });
+
+  // Relay patient admission / queue advancement inside call room
+  socket.on('admit-patient', ({ roomId, targetUserId, appointmentId, serialNumber }) => {
+    const patientSocketId = targetUserId ? onlineUsers.get(targetUserId.toString()) : null;
+    if (patientSocketId) {
+      io.to(patientSocketId).emit('patient-admitted', { roomId, appointmentId, serialNumber });
+    }
+    io.to(roomId).emit('patient-admitted', { roomId, appointmentId, serialNumber });
   });
 
   // Relay chat messages inside call rooms
   socket.on('send-message', ({ roomId, message, senderName }) => {
-    socket.to(roomId).emit('receive-message', { message, senderName });
+    socket.to(roomId).emit('receive-message', { message, senderName, senderSocketId: socket.id });
   });
 
   // Relay collaborative whiteboard drawings
@@ -138,7 +186,7 @@ io.on('connection', (socket) => {
   socket.on('leave-room', ({ roomId, userName }) => {
     console.log(`User ${userName} left room ${roomId}`);
     socket.leave(roomId);
-    socket.to(roomId).emit('user-left', { userName });
+    socket.to(roomId).emit('user-left', { userName, socketId: socket.id });
   });
 
   socket.on('disconnect', () => {
@@ -179,23 +227,23 @@ app.get('/', (req, res) => {
   res.send('Hospital Management System API (with Telemedicine & Uploads) is running...');
 });
 
-// Seed default Super Admin & Domain Admins
+// Seed default Hospital Admin & Domain Admins
 const seedSuperAdminAndDomainAdmins = async () => {
   try {
-    const superAdminExists = await User.findOne({ email: 'superadmin@hospital.com' });
-    if (!superAdminExists) {
+    const adminExists = await User.findOne({ email: 'admin@hospital.com' });
+    if (!adminExists) {
       await User.create({
-        name: 'Dr. A. S. Verma (Super Admin & Director)',
-        email: 'superadmin@hospital.com',
+        name: 'Dr. A. S. Verma (Hospital Administrator)',
+        email: 'admin@hospital.com',
         password: 'password123',
-        role: 'superadmin',
-        adminType: 'super_admin',
-        department: 'Hospital Board of Directors',
+        role: 'admin',
+        adminType: 'general_admin',
+        department: 'Hospital Administration & Operations',
         phoneNumber: '+91 99182 72164',
         gender: 'Male',
         status: 'Active',
       });
-      console.log('Seeded Super Admin: superadmin@hospital.com / password123');
+      console.log('Seeded Admin: admin@hospital.com / password123');
     }
 
     const domainAdmins = [
@@ -208,16 +256,6 @@ const seedSuperAdminAndDomainAdmins = async () => {
         department: 'Doctor & Department Operations',
         phoneNumber: '+91 98765 43211',
         gender: 'Male',
-      },
-      {
-        name: 'Priya Sharma (In-Patient & Bed Manager)',
-        email: 'bedadmin@hospital.com',
-        password: 'password123',
-        role: 'admin_beds',
-        adminType: 'bed_manager',
-        department: 'IPD Ward & Bed Logistics',
-        phoneNumber: '+91 98765 43212',
-        gender: 'Female',
       },
       {
         name: 'Anjali Gupta (Helpdesk & Reception Head)',
@@ -235,7 +273,7 @@ const seedSuperAdminAndDomainAdmins = async () => {
         password: 'password123',
         role: 'admin_staff',
         adminType: 'staff_manager',
-        department: 'Human Resources & Nursing Staff',
+        department: 'Human Resources & Staff Operations',
         phoneNumber: '+91 98765 43214',
         gender: 'Male',
       },

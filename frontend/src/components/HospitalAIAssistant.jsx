@@ -17,23 +17,32 @@ const ALL_SLOTS = [
 /* ─── Quick Actions ────────────────────────────────────────────── */
 const QUICK_ACTIONS = {
   patient: [
-    '📅 Appointment book karo',
+    '📅 OPD Appointment kaise book karein?',
+    '🎥 Video Call mein kaise join karein?',
+    '🎫 Mera queue token number kya hai?',
     '🤒 Bukhaar mein kya karna chahiye?',
-    '💊 Meri medicines kya hain?',
-    '🏥 Kaunse doctor se milna chahiye?',
-    '📋 Mere latest reports kya hain?',
+    '📋 Mere prescriptions kaise dekhein?',
   ],
   doctor: [
-    '📊 Aaj ke pending appointments?','💉 Prescription guide?',
-    '🏥 Available beds?','📈 Department metrics?','🔬 Lab results interpret karo',
+    '📊 Aaj ki OPD waiting queue?',
+    '▶ Agle patient ko kaise call karein?',
+    '💉 Prescription issue kaise karein?',
+    '📈 Today consultation metrics?',
+    '🔬 Lab results interpret karo',
   ],
   admin: [
-    '📊 Hospital metrics?','👥 Staff availability?',
-    '🛏️ Bed occupancy?','💰 Pending billing?','🚨 Critical alerts?',
+    '📊 Central Doctor OPD Stations Monitor?',
+    '👥 Doctors & Staff schedule assignment?',
+    '💰 Today collection & billing?',
+    '📺 Live OPD TV queue screen status?',
+    '🚨 Critical operational alerts?',
   ],
   receptionist: [
-    '📅 Aaj ke appointments','🏥 Patient registration guide?',
-    '🛏️ Room/bed availability?','📞 Emergency numbers?','💊 Pharmacy contact?',
+    '📅 Aaj ke OPD tokens & appointments',
+    '🏥 Patient registration steps?',
+    '📺 Waiting Room TV display setup?',
+    '📞 Emergency numbers & ambulance?',
+    '💳 Upfront billing query help?',
   ],
 };
 

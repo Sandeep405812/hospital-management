@@ -45,13 +45,14 @@ const CallRoom = () => {
   // Accepted call is true since Patient accepts from the global popup modal
   const [acceptedCall] = useState(true);
   
-  // Hosts are doctors, admins, superadmins
-  const isHost = user?.role === 'doctor' || user?.role === 'admin' || user?.role === 'superadmin' || user?.role?.startsWith('admin_');
+  // Hosts are doctors, admins, and domain admins
+  const isHost = user?.role === 'doctor' || user?.role === 'admin' || user?.role?.startsWith('admin_');
   
   // Live waiting queue for doctor in call room
   const [queueList, setQueueList] = useState([]);
   const [callingNext, setCallingNext] = useState(false);
   const [showEndModal, setShowEndModal] = useState(false);
+  const [lobbyPeers, setLobbyPeers] = useState([]);
   
   // Stream states to solve conditional rendering ref-binding issues
   const [localStream, setLocalStream] = useState(null);
@@ -60,6 +61,7 @@ const CallRoom = () => {
   const socketRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
+  const iceCandidateQueueRef = useRef([]);
   
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -243,6 +245,55 @@ const CallRoom = () => {
       console.warn("Invalid BACKEND_URL, using as-is:", BACKEND_URL);
     }
     socketRef.current = io(socketUrl);
+
+    // Fallback synthetic media stream generator for browsers without cameras/mics
+    const createSyntheticStream = (displayName) => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 640;
+        canvas.height = 480;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#14b8a6';
+          ctx.beginPath();
+          ctx.arc(320, 200, 70, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.font = 'bold 36px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText((displayName || 'User').charAt(0).toUpperCase(), 320, 212);
+          ctx.font = 'bold 22px sans-serif';
+          ctx.fillText(displayName || 'User', 320, 315);
+          ctx.font = '15px sans-serif';
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillText('Virtual Telemedicine Stream Active', 320, 350);
+        }
+        const videoTrack = canvas.captureStream(10).getVideoTracks()[0];
+
+        let audioTrack = null;
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          const actx = new AudioCtx();
+          const osc = actx.createOscillator();
+          const dst = actx.createMediaStreamDestination();
+          const gain = actx.createGain();
+          gain.gain.value = 0.0001;
+          osc.connect(gain);
+          gain.connect(dst);
+          osc.start();
+          audioTrack = dst.stream.getAudioTracks()[0];
+        }
+
+        const tracks = [videoTrack];
+        if (audioTrack) tracks.push(audioTrack);
+        return new MediaStream(tracks);
+      } catch (e) {
+        console.warn('Could not generate synthetic media stream:', e);
+        return null;
+      }
+    };
     
     const startMedia = async () => {
       try {
@@ -253,12 +304,19 @@ const CallRoom = () => {
         localStreamRef.current = stream;
         setLocalStream(stream);
         setCallStatus('ready');
-        
         initializePeerConnection(stream);
       } catch (err) {
-        console.warn('Camera/Mic permission denied or unavailable, running mock feed simulation', err);
-        setCallStatus('talking');
-        socketRef.current.emit('join-room', { roomId: id, userId: user._id, userName: user.name });
+        console.warn('Camera/Mic permission denied or not found, initializing fallback media feed', err);
+        const fallbackStream = createSyntheticStream(user?.name);
+        if (fallbackStream) {
+          localStreamRef.current = fallbackStream;
+          setLocalStream(fallbackStream);
+          setCallStatus('ready');
+          initializePeerConnection(fallbackStream);
+        } else {
+          setCallStatus('talking');
+          socketRef.current.emit('join-room', { roomId: id, userId: user._id, userName: user.name, role: user.role });
+        }
       }
     };
 
@@ -274,6 +332,14 @@ const CallRoom = () => {
       drawOnCanvas(drawData.x0, drawData.y0, drawData.x1, drawData.y1, drawData.color, drawData.width, false);
     });
 
+    // Sockets Patient Admitted listener (auto-transition)
+    socketRef.current.on('patient-admitted', ({ appointmentId, serialNumber }) => {
+      playHospitalChime();
+      if (appointmentId && appointmentId !== id && user.role === 'patient') {
+        navigate(`/appointments/${appointmentId}/call`);
+      }
+    });
+
     return () => {
       cleanupMedia();
     };
@@ -286,6 +352,19 @@ const CallRoom = () => {
     }
   }, [messages]);
 
+  const flushIceCandidates = async () => {
+    const pc = peerConnectionRef.current;
+    if (!pc || !pc.remoteDescription) return;
+    while (iceCandidateQueueRef.current.length > 0) {
+      const cand = iceCandidateQueueRef.current.shift();
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(cand));
+      } catch (err) {
+        console.warn('Failed to add buffered ICE candidate', err);
+      }
+    }
+  };
+
   const cleanupMedia = () => {
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -293,6 +372,7 @@ const CallRoom = () => {
     }
     setLocalStream(null);
     setRemoteStream(null);
+    iceCandidateQueueRef.current = [];
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
@@ -309,18 +389,25 @@ const CallRoom = () => {
 
   const initializePeerConnection = (stream) => {
     const config = {
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun.services.mozilla.com' },
+      ],
     };
     
     const pc = new RTCPeerConnection(config);
     peerConnectionRef.current = pc;
 
-    stream.getTracks().forEach((track) => {
-      pc.addTrack(track, stream);
-    });
+    if (stream) {
+      stream.getTracks().forEach((track) => {
+        pc.addTrack(track, stream);
+      });
+    }
 
     pc.ontrack = (event) => {
-      if (event.streams[0]) {
+      if (event.streams && event.streams[0]) {
         setRemoteStream(event.streams[0]);
         setCallStatus('talking');
       }
@@ -332,7 +419,13 @@ const CallRoom = () => {
       }
     };
 
-    socketRef.current.emit('join-room', { roomId: id, userId: user._id, userName: user.name });
+    // Join Room with role details
+    socketRef.current.emit('join-room', {
+      roomId: id,
+      userId: user._id,
+      userName: user.name,
+      role: user.role
+    });
 
     if (isHost) {
       socketRef.current.emit('call-patient', {
@@ -347,47 +440,82 @@ const CallRoom = () => {
       });
     }
 
-    socketRef.current.on('user-joined', async ({ userName }) => {
-      setCallStatus('talking');
-      try {
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socketRef.current.emit('offer', { roomId: id, sdp: offer });
-      } catch (err) {
-        console.error('Failed to create offer', err);
+    // Existing peers in the room
+    socketRef.current.on('room-peers', async ({ peers }) => {
+      if (peers && peers.length > 0) {
+        setLobbyPeers(peers);
+        // If Host joins and peer is already waiting, initiate offer
+        if (isHost) {
+          const target = peers[0];
+          try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            socketRef.current.emit('offer', { roomId: id, sdp: offer, targetSocketId: target.socketId });
+          } catch (err) {
+            console.error('Failed to create offer for existing peer', err);
+          }
+        }
       }
     });
 
-    socketRef.current.on('offer', async ({ sdp }) => {
+    // When another peer joins the room
+    socketRef.current.on('user-joined', async ({ socketId, userName, userRole }) => {
+      setLobbyPeers(prev => [...prev.filter(p => p.socketId !== socketId), { socketId, userName, userRole }]);
+      setCallStatus('talking');
+
+      // Host initiates offer to the new participant
+      if (isHost) {
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          socketRef.current.emit('offer', { roomId: id, sdp: offer, targetSocketId: socketId });
+        } catch (err) {
+          console.error('Failed to create offer for joined user', err);
+        }
+      }
+    });
+
+    // Incoming WebRTC Offer
+    socketRef.current.on('offer', async ({ sdp, senderSocketId }) => {
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        await flushIceCandidates();
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        socketRef.current.emit('answer', { roomId: id, sdp: answer });
+        socketRef.current.emit('answer', { roomId: id, sdp: answer, targetSocketId: senderSocketId });
       } catch (err) {
         console.error('Failed to answer offer', err);
       }
     });
 
+    // Incoming WebRTC Answer
     socketRef.current.on('answer', async ({ sdp }) => {
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+        await flushIceCandidates();
       } catch (err) {
         console.error('Failed to set remote answer description', err);
       }
     });
 
+    // Incoming WebRTC ICE Candidate
     socketRef.current.on('ice-candidate', async ({ candidate }) => {
-      try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (err) {
-        console.error('Failed to add WebRTC ICE Candidate', err);
+      if (!candidate) return;
+      if (pc.remoteDescription && pc.remoteDescription.type) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (err) {
+          console.warn('Failed to add WebRTC ICE Candidate', err);
+        }
+      } else {
+        iceCandidateQueueRef.current.push(candidate);
       }
     });
 
-    socketRef.current.on('user-left', ({ userName }) => {
+    socketRef.current.on('user-left', ({ userName, socketId }) => {
+      setLobbyPeers(prev => prev.filter(p => p.socketId !== socketId));
       if (user.role === 'patient') {
-        alert('The Call has ended.');
+        alert('The Doctor has ended the consultation session.');
         handleEndCall();
       } else {
         setCallStatus('ready');
@@ -872,9 +1000,35 @@ const CallRoom = () => {
 
           <div style={videoWrapperStyle}>
             {callStatus === 'ready' ? (
-              <div style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>
-                <Settings size={48} className="spin-animation" style={{ marginBottom: '0.5rem', animation: 'spin 2s linear infinite' }} />
-                <p>Waiting for peer to join...</p>
+              <div style={{ textAlign: 'center', color: 'var(--text-secondary)', padding: '2rem' }}>
+                <div style={{
+                  width: '60px', height: '60px', borderRadius: '50%',
+                  backgroundColor: 'rgba(20, 184, 166, 0.15)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: 'var(--accent-teal)', margin: '0 auto 1rem',
+                  animation: 'pulse 2s infinite'
+                }}>
+                  <Video size={28} />
+                </div>
+                {user.role === 'patient' ? (
+                  <>
+                    <h4 style={{ color: '#fff', fontSize: '1.05rem', fontWeight: 700, margin: '0 0 0.4rem 0' }}>
+                      Connected to Consultation Cabin
+                    </h4>
+                    <p style={{ fontSize: '0.85rem', margin: 0, maxWidth: '280px' }}>
+                      Dr. {appointment.doctor?.user?.name || 'Doctor'} is attending the OPD queue. Please stay on this screen — you will be connected directly!
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <h4 style={{ color: '#fff', fontSize: '1.05rem', fontWeight: 700, margin: '0 0 0.4rem 0' }}>
+                      Ready for Patient: {appointment.patient?.user?.name || 'Patient'}
+                    </h4>
+                    <p style={{ fontSize: '0.85rem', margin: 0, maxWidth: '280px' }}>
+                      Awaiting patient video feed. Patient has received incoming call alert.
+                    </p>
+                  </>
+                )}
               </div>
             ) : !remoteStream ? (
               <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%)' }}>
@@ -884,7 +1038,7 @@ const CallRoom = () => {
                 <p style={{ fontWeight: 600 }}>
                   {user.role === 'patient' ? appointment.doctor?.user?.name : appointment.patient?.user?.name}
                 </p>
-                <span style={{ fontSize: '0.8rem', color: 'var(--accent-teal)' }}>Connected • Mock Video Stream</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--accent-teal)' }}>Connected • Audio / Video Active</span>
               </div>
             ) : (
               <video ref={remoteVideoRef} autoPlay playsInline style={videoElementStyle} />

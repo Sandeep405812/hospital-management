@@ -24,7 +24,7 @@ import {
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const isAdminRole = user?.role === 'admin' || user?.role === 'superadmin' || user?.role?.startsWith('admin_');
+  const isAdminRole = user?.role === 'admin' || user?.role?.startsWith('admin_');
 
   const [stats, setStats] = useState({
     doctors: 0,
@@ -1055,36 +1055,92 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* Medicine & Doctors Spotlight Section */}
+      {/* OPD Consultation Status & Specialist Doctors Spotlight */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem', marginTop: '2rem', marginBottom: '2rem' }}>
         
-        {/* Medicine Catalog Section */}
+        {/* Live OPD Consultation Desk Card */}
         <div style={{ background: 'var(--glass-bg)', padding: '1.5rem', borderRadius: 'var(--border-radius-lg)', border: '1px solid var(--glass-border)', boxShadow: 'var(--shadow-md)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <span>💊</span> <span>Pharmacy Specials</span>
+              <span>🩺</span> <span>OPD Consultation Desk</span>
             </h3>
-            <Link to="/store" style={{ fontSize: '0.85rem', color: 'var(--accent-blue)', fontWeight: 600 }}>Visit E-Store</Link>
+            <Link to="/appointments" style={{ fontSize: '0.85rem', color: 'var(--accent-blue)', fontWeight: 600 }}>Manage Appointments</Link>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {[
-              { name: 'Paracetamol 500mg', price: 40, category: 'Pain & Fever Relief', desc: 'Relief from fevers and mild body aches.' },
-              { name: 'Limcee Vitamin C 500mg', price: 65, category: 'Wellness & Immunity', desc: 'Chewable tablets for daily immunity support.' },
-              { name: 'Torex Cough Syrup 100ml', price: 95, category: 'Cough & Cold', desc: 'Bronchial formula for dry cough relief.' }
-            ].map((med, idx) => (
-              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.02)', border: '1px solid var(--glass-border)', borderRadius: 'var(--border-radius)' }}>
-                <div>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--accent-teal)', fontWeight: 700, textTransform: 'uppercase' }}>{med.category}</span>
-                  <h4 style={{ fontSize: '0.9rem', margin: '0.1rem 0', fontWeight: 700, color: 'var(--text-primary)' }}>{med.name}</h4>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>{med.desc}</p>
+          {(() => {
+            const activeCallApp = recentAppointments.find((a) => a.status === 'ongoing');
+            const nextUpcomingApp = recentAppointments.find((a) => ['approved', 'waiting', 'pending'].includes(a.status));
+
+            if (activeCallApp) {
+              return (
+                <div style={{
+                  padding: '1.25rem',
+                  borderRadius: 'var(--border-radius)',
+                  background: 'linear-gradient(135deg, rgba(20, 184, 166, 0.2), rgba(59, 130, 246, 0.15))',
+                  border: '1.5px solid var(--accent-teal)',
+                  animation: 'pulse 2s infinite'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-teal)', fontWeight: 800, fontSize: '0.85rem' }}>
+                    <Video size={18} />
+                    <span>CONSULTATION IS LIVE NOW</span>
+                  </div>
+                  <h4 style={{ fontSize: '1.2rem', fontWeight: 800, margin: '0.4rem 0', color: '#fff' }}>
+                    Dr. {activeCallApp.doctor?.user?.name || 'Physician'} is Ready!
+                  </h4>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                    Token #{activeCallApp.serialNumber} · {activeCallApp.timeSlot}
+                  </p>
+                  <Link
+                    to={`/appointments/${activeCallApp._id}/call`}
+                    className="btn btn-teal"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800, width: '100%', justifyContent: 'center', padding: '0.75rem' }}
+                  >
+                    <Video size={18} />
+                    <span>Enter Video Consultation Room</span>
+                  </Link>
                 </div>
-                <div style={{ textAlign: 'right', minWidth: '75px' }}>
-                  <span style={{ fontSize: '1rem', fontWeight: 900, color: 'var(--accent-teal)', display: 'block' }}>₹{med.price}</span>
-                  <Link to="/store" style={{ fontSize: '0.7rem', color: 'var(--accent-blue)', fontWeight: 700, textDecoration: 'none' }}>Order Now</Link>
+              );
+            }
+
+            if (nextUpcomingApp) {
+              return (
+                <div style={{
+                  padding: '1.25rem',
+                  borderRadius: 'var(--border-radius)',
+                  backgroundColor: 'rgba(255,255,255,0.03)',
+                  border: '1px solid var(--glass-border)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--accent-blue)', fontWeight: 700, textTransform: 'uppercase' }}>Upcoming Appointment</span>
+                    <span className="badge badge-pending">Token #{nextUpcomingApp.serialNumber}</span>
+                  </div>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 700, margin: '0.2rem 0', color: '#fff' }}>
+                    Dr. {nextUpcomingApp.doctor?.user?.name || 'Physician'}
+                  </h4>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.2rem 0 1rem 0' }}>
+                    {new Date(nextUpcomingApp.date).toLocaleDateString()} · Slot: {nextUpcomingApp.timeSlot}
+                  </p>
+                  <Link
+                    to={`/appointments/${nextUpcomingApp._id}/call`}
+                    className="btn btn-secondary btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', width: '100%', justifyContent: 'center' }}
+                  >
+                    <Video size={14} />
+                    <span>View Consultation Room</span>
+                  </Link>
                 </div>
+              );
+            }
+
+            return (
+              <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-secondary)' }}>
+                <Calendar size={32} style={{ opacity: 0.4, margin: '0 auto 0.5rem' }} />
+                <p style={{ fontSize: '0.9rem', margin: '0 0 1rem 0' }}>No active consultations scheduled today.</p>
+                <Link to="/appointments" className="btn btn-primary btn-sm">
+                  Book New Appointment
+                </Link>
               </div>
-            ))}
-          </div>
+            );
+          })()}
         </div>
 
         {/* Doctors Card Spotlight Section */}
