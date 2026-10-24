@@ -185,7 +185,7 @@ const seedSuperAdminAndDomainAdmins = async () => {
       await User.create({
         name: 'Dr. A. S. Verma (Super Admin & Director)',
         email: 'superadmin@hospital.com',
-        password: 'superadmin123',
+        password: 'password123',
         role: 'superadmin',
         adminType: 'super_admin',
         department: 'Hospital Board of Directors',
@@ -193,14 +193,14 @@ const seedSuperAdminAndDomainAdmins = async () => {
         gender: 'Male',
         status: 'Active',
       });
-      console.log('Seeded Super Admin: superadmin@hospital.com / superadmin123');
+      console.log('Seeded Super Admin: superadmin@hospital.com / password123');
     }
 
     const domainAdmins = [
       {
         name: 'Vikram Mehta (Doctor & OPD Manager)',
         email: 'doctoradmin@hospital.com',
-        password: 'doctoradmin123',
+        password: 'password123',
         role: 'admin_doctors',
         adminType: 'doctor_manager',
         department: 'Doctor & Department Operations',
@@ -210,7 +210,7 @@ const seedSuperAdminAndDomainAdmins = async () => {
       {
         name: 'Priya Sharma (In-Patient & Bed Manager)',
         email: 'bedadmin@hospital.com',
-        password: 'bedadmin123',
+        password: 'password123',
         role: 'admin_beds',
         adminType: 'bed_manager',
         department: 'IPD Ward & Bed Logistics',
@@ -220,7 +220,7 @@ const seedSuperAdminAndDomainAdmins = async () => {
       {
         name: 'Anjali Gupta (Helpdesk & Reception Head)',
         email: 'helpdeskadmin@hospital.com',
-        password: 'helpdeskadmin123',
+        password: 'password123',
         role: 'admin_helpdesk',
         adminType: 'helpdesk_manager',
         department: 'Front Desk & Help Center',
@@ -230,7 +230,7 @@ const seedSuperAdminAndDomainAdmins = async () => {
       {
         name: 'Rajesh Khanna (Staff & HR Operations)',
         email: 'staffadmin@hospital.com',
-        password: 'staffadmin123',
+        password: 'password123',
         role: 'admin_staff',
         adminType: 'staff_manager',
         department: 'Human Resources & Nursing Staff',
@@ -262,12 +262,12 @@ const seedAdmin = async () => {
       await User.create({
         name: 'System Admin',
         email: 'admin@hospital.com',
-        password: 'adminpassword123',
+        password: 'password123',
         role: 'admin',
         phoneNumber: '1234567890',
         gender: 'Male',
       });
-      console.log('Seeded default admin user: admin@hospital.com / adminpassword123');
+      console.log('Seeded default admin user: admin@hospital.com / password123');
     }
   } catch (error) {
     console.error('Error seeding admin user:', error.message);
@@ -282,12 +282,12 @@ const seedReceptionist = async () => {
       await User.create({
         name: 'System Receptionist',
         email: 'receptionist@hospital.com',
-        password: 'receptionistpassword123',
+        password: 'password123',
         role: 'receptionist',
         phoneNumber: '0987654321',
         gender: 'Female',
       });
-      console.log('Seeded default receptionist user: receptionist@hospital.com / receptionistpassword123');
+      console.log('Seeded default receptionist user: receptionist@hospital.com / password123');
     }
   } catch (error) {
     console.error('Error seeding receptionist user:', error.message);
@@ -307,7 +307,7 @@ const seedDoctor = async () => {
     const user = await User.create({
       name: 'Dr. Sandeep Singh',
       email: 'doctor@hospital.com',
-      password: 'doctorpassword123',
+      password: 'password123',
       role: 'doctor',
       phoneNumber: '9876543210',
       gender: 'Male',
@@ -318,7 +318,7 @@ const seedDoctor = async () => {
       experience: 12,
       qualification: 'MBBS, MD (Medicine)',
     });
-    console.log('Seeded default doctor: doctor@hospital.com / doctorpassword123');
+    console.log('Seeded default doctor: doctor@hospital.com / password123');
   } catch (error) {
     console.error('Error seeding doctor user:', error.message);
   }
@@ -336,7 +336,7 @@ const seedPatient = async () => {
     const user = await User.create({
       name: 'Amit Kumar',
       email: 'patient@hospital.com',
-      password: 'patientpassword123',
+      password: 'password123',
       role: 'patient',
       phoneNumber: '9988776655',
       gender: 'Male',
@@ -348,7 +348,7 @@ const seedPatient = async () => {
       bloodType: 'O+',
       emergencyContact: '9112233445',
     });
-    console.log('Seeded default patient: patient@hospital.com / patientpassword123');
+    console.log('Seeded default patient: patient@hospital.com / password123');
   } catch (error) {
     console.error('Error seeding patient user:', error.message);
   }
