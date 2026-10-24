@@ -26,6 +26,18 @@ export const getAllStaff = async (req, res) => {
   }
 };
 
+// Helper to resolve adminType enum safely
+const resolveAdminType = (role, explicitType) => {
+  if (explicitType) return explicitType;
+  if (role === 'superadmin') return 'super_admin';
+  if (role === 'admin_doctors') return 'doctor_manager';
+  if (role === 'admin_staff') return 'staff_manager';
+  if (role === 'admin_beds') return 'bed_manager';
+  if (role === 'admin_helpdesk') return 'helpdesk_manager';
+  if (role?.startsWith('admin_')) return role.replace('admin_', '') + '_manager';
+  return 'none';
+};
+
 // @desc    Create a new staff member or specialized sub-admin
 // @route   POST /api/staff
 // @access  Private (Super Admin / Admin)
@@ -44,13 +56,15 @@ export const createStaffMember = async (req, res) => {
       return res.status(403).json({ message: 'Only Super Admin can assign administrative roles' });
     }
 
+    const calculatedAdminType = resolveAdminType(role, adminType);
+
     const newStaff = await User.create({
       name,
       email,
       password: password || 'hospitalstaff123',
       role: role || 'receptionist',
       department: department || 'General',
-      adminType: adminType || (role.startsWith('admin_') ? role.replace('admin_', '') + '_manager' : 'none'),
+      adminType: calculatedAdminType,
       phoneNumber: phoneNumber || '',
       gender: gender || 'Other',
       assignedBy: req.user._id,
@@ -94,9 +108,7 @@ export const updateStaffMember = async (req, res) => {
     if (name) staff.name = name;
     if (role) {
       staff.role = role;
-      if (role.startsWith('admin_')) {
-        staff.adminType = role.replace('admin_', '') + '_manager';
-      }
+      staff.adminType = resolveAdminType(role);
     }
     if (department) staff.department = department;
     if (status) staff.status = status;

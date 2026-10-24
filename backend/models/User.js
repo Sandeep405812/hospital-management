@@ -43,7 +43,6 @@ const userSchema = new mongoose.Schema(
     },
     adminType: {
       type: String,
-      enum: ['super_admin', 'doctor_manager', 'staff_manager', 'helpdesk_manager', 'bed_manager', 'none'],
       default: 'none',
     },
     status: {
