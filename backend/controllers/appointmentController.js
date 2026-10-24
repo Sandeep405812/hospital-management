@@ -72,6 +72,12 @@ export const createAppointment = async (req, res) => {
         paymentMethod: finalPaymentMethod,
       });
 
+      // Broadcast realtime queue update across all TV screens and dashboards
+      const io = req.app?.get('io');
+      if (io) {
+        io.emit('queue-updated', { doctorId: doctor._id.toString() });
+      }
+
       res.status(201).json({
         message: `Appointment booked & Paid (₹${total})! Token #${serialNumber} generated in Doctor's OPD Queue.`,
         appointment,
@@ -213,6 +219,13 @@ export const updateAppointmentStatus = async (req, res) => {
 
     appointment.status = status;
     const updated = await appointment.save();
+
+    // Broadcast realtime queue update
+    const io = req.app?.get('io');
+    if (io) {
+      const dId = appointment.doctor?._id || appointment.doctor;
+      if (dId) io.emit('queue-updated', { doctorId: dId.toString() });
+    }
 
     res.json({
       message: `Appointment status updated to ${status}`,
@@ -367,6 +380,12 @@ export const callNextPatient = async (req, res) => {
     // 3. Mark next patient as ongoing
     nextApp.status = 'ongoing';
     await nextApp.save();
+
+    // Broadcast realtime queue update
+    const io = req.app?.get('io');
+    if (io) {
+      io.emit('queue-updated', { doctorId: doctorId.toString() });
+    }
 
     res.json({
       message: `Token #${nextApp.serialNumber} (${nextApp.patient?.user?.name || 'Patient'}) called for consultation!`,

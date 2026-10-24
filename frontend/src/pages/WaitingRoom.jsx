@@ -45,11 +45,15 @@ const WaitingRoom = () => {
     try {
       const data = await api.get('/appointments');
       
-      // Filter appointments for today
-      const todayStr = new Date().toISOString().split('T')[0];
+      // Filter appointments for today (timezone-tolerant: matches local date or UTC date)
+      const now = new Date();
+      const localToday = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+      const utcToday = now.toISOString().split('T')[0];
       const todayApps = data.filter((app) => {
-        const appDate = new Date(app.date).toISOString().split('T')[0];
-        return appDate === todayStr;
+        if (!app.date) return false;
+        const appUtc = new Date(app.date).toISOString().split('T')[0];
+        const appLocal = new Date(new Date(app.date).getTime() - new Date(app.date).getTimezoneOffset() * 60000).toISOString().split('T')[0];
+        return appUtc === utcToday || appUtc === localToday || appLocal === localToday || appLocal === utcToday;
       });
 
       setAppointments(todayApps);

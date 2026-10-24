@@ -27,17 +27,29 @@ export const addMetric = async (req, res) => {
   }
 };
 
-// @desc    Get all health metrics of patient
+// @desc    Get all health metrics of patient (or patient query for Doctor/Admin)
 // @route   GET /api/metrics
-// @access  Private/Patient
+// @access  Private
 export const getMetrics = async (req, res) => {
   try {
-    const patient = await Patient.findOne({ user: req.user._id });
-    if (!patient) {
-      return res.status(403).json({ message: 'Only registered patients can view health metrics' });
+    let query = {};
+    if (req.user.role === 'patient') {
+      const patient = await Patient.findOne({ user: req.user._id });
+      if (patient) query.patient = patient._id;
+      else return res.json([]);
+    } else {
+      // Doctor or Admin can filter by patientId, or fetch all metrics
+      const { patientId } = req.query;
+      if (patientId) {
+        query.patient = patientId;
+      }
     }
 
-    const metrics = await HealthMetric.find({ patient: patient._id })
+    const metrics = await HealthMetric.find(query)
+      .populate({
+        path: 'patient',
+        populate: { path: 'user', select: 'name email' },
+      })
       .sort({ date: 1 }); // Sort by date ascending for charts
 
     res.json(metrics);

@@ -54,6 +54,8 @@ const io = new Server(server, {
   },
 });
 
+app.set('io', io);
+
 // Global Map to track online users (userId -> socketId)
 const onlineUsers = new Map();
 

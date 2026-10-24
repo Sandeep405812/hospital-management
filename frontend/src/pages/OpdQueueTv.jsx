@@ -67,14 +67,20 @@ const OpdQueueTv = () => {
     if (!targetDocId) return;
 
     try {
-      // Get today's start and end date
-      const todayStr = new Date().toISOString().split('T')[0];
-      const data = await api.get(`/appointments?doctorId=${targetDocId}&startDate=${todayStr}`);
+      const data = await api.get(`/appointments?doctorId=${targetDocId}`);
       
-      // Filter for this doctor & today
+      const now = new Date();
+      const localToday = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+      const utcToday = now.toISOString().split('T')[0];
+
+      // Filter for this doctor & today (timezone tolerant)
       const docApps = data.filter((a) => {
         const aDocId = a.doctor?._id || a.doctor;
-        return aDocId === targetDocId;
+        if (aDocId !== targetDocId) return false;
+        if (!a.date) return false;
+        const appUtc = new Date(a.date).toISOString().split('T')[0];
+        const appLocal = new Date(new Date(a.date).getTime() - new Date(a.date).getTimezoneOffset() * 60000).toISOString().split('T')[0];
+        return appUtc === utcToday || appUtc === localToday || appLocal === localToday || appLocal === utcToday;
       });
 
       setAppointments(docApps);

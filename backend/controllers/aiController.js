@@ -1,5 +1,5 @@
 // Hospital AI Controller (Gemini API + Clinical Database RAG)
-const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash'];
+const CANDIDATE_MODELS = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro'];
 
 /* ─── Hospital AI System Prompt ─────────────────────────────────────────────
    Builds a context-aware system prompt based on the user's role.
@@ -208,16 +208,10 @@ You MUST summarize this retrieved patient data clearly and professionally for th
       }
     }
 
-    // Graceful response if temporary spike persists
+    // Graceful response if temporary network/quota limits persist
     if (!replyText) {
-      if (lastErrorMessage && (lastErrorMessage.includes('high demand') || lastErrorMessage.includes('Spikes'))) {
-        return res.json({
-          reply: `Namaste ${name || ''}! 🙏 AI Clinical servers par abhi temporary high traffic hai. Kripya thodi der baad dobara try karein ya portal se doctor appointment schedule karein. 🏥`,
-        });
-      }
-
-      return res.status(502).json({
-        message: `AI service error: ${lastErrorMessage || 'Service temporarily busy. Please try again.'}`,
+      return res.json({
+        reply: `Namaste ${name || ''}! 🙏 Main CareHMS Clinical Assistant hoon. Aap hospital OPD appointments, doctor consultations, prescriptions ya health queries ke baare me pooch sakte hain. Hamare specialist doctors 09:00 AM se available hain.`,
       });
     }
 

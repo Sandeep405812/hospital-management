@@ -77,7 +77,7 @@ export const uploadReport = async (req, res) => {
   }
 };
 
-// @desc    Get reports list (Filtered by Patient profile, or Patient Query for Doctor/Admin)
+// @desc    Get reports list (Filtered by Patient profile, or all reports for Doctor/Admin)
 // @route   GET /api/reports
 // @access  Private
 export const getReports = async (req, res) => {
@@ -87,17 +87,21 @@ export const getReports = async (req, res) => {
     if (req.user.role === 'patient') {
       const patient = await Patient.findOne({ user: req.user._id });
       if (patient) query.patient = patient._id;
+      else return res.json([]);
     } else {
-      // Admin/Doctor can specify patientId in query
+      // Admin/Doctor can specify patientId in query, or view all hospital reports
       const { patientId } = req.query;
       if (patientId) {
         query.patient = patientId;
-      } else {
-        return res.status(400).json({ message: 'Please specify patientId query parameter' });
       }
     }
 
-    const reports = await Report.find(query).sort({ date: -1 });
+    const reports = await Report.find(query)
+      .populate({
+        path: 'patient',
+        populate: { path: 'user', select: 'name email phoneNumber' },
+      })
+      .sort({ createdAt: -1 });
     res.json(reports);
   } catch (error) {
     res.status(500).json({ message: error.message });

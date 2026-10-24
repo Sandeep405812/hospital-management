@@ -3,16 +3,24 @@ import Appointment from '../models/Appointment.js';
 import Doctor from '../models/Doctor.js';
 import Patient from '../models/Patient.js';
 
-// @desc    Create a new prescription (Doctor only)
+// @desc    Create a new prescription (Doctor / Admin)
 // @route   POST /api/prescriptions
-// @access  Private/Doctor
+// @access  Private/Doctor/Admin
 export const createPrescription = async (req, res) => {
-  const { appointmentId, medicines, notes } = req.body;
+  const appointmentId = req.body.appointmentId || req.body.appointment;
+  const { medicines, notes, diagnosis } = req.body;
 
   try {
-    const doctor = await Doctor.findOne({ user: req.user._id });
+    let doctor = await Doctor.findOne({ user: req.user._id });
+    if (!doctor && (req.user.role === 'admin' || req.user.role === 'superadmin')) {
+      const targetApp = await Appointment.findById(appointmentId).populate('doctor');
+      if (targetApp && targetApp.doctor) {
+        doctor = targetApp.doctor;
+      }
+    }
+
     if (!doctor) {
-      return res.status(403).json({ message: 'Only registered doctors can issue prescriptions' });
+      return res.status(403).json({ message: 'Only registered doctors or authorized hospital admins can issue prescriptions' });
     }
 
     const appointment = await Appointment.findById(appointmentId);
@@ -20,9 +28,8 @@ export const createPrescription = async (req, res) => {
       return res.status(404).json({ message: 'Appointment not found' });
     }
 
-    if (appointment.doctor.toString() !== doctor._id.toString()) {
-      return res.status(403).json({ message: 'You are not authorized to prescribe for this appointment' });
-    }
+    // Combine diagnosis with notes if provided
+    const combinedNotes = diagnosis ? (notes ? `${diagnosis} | Notes: ${notes}` : diagnosis) : notes;
 
     // Create prescription
     const prescription = await Prescription.create({
@@ -30,7 +37,7 @@ export const createPrescription = async (req, res) => {
       patient: appointment.patient,
       doctor: doctor._id,
       medicines,
-      notes,
+      notes: combinedNotes,
     });
 
     if (prescription) {
