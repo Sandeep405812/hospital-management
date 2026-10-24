@@ -4,7 +4,24 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
 import Table from '../components/Table';
 import Modal from '../components/Modal';
-import { Calendar, Plus, Check, X, FileText, Video, Mic, Tv } from 'lucide-react';
+import {
+  Calendar,
+  Plus,
+  Check,
+  X,
+  FileText,
+  Video,
+  Mic,
+  Tv,
+  Play,
+  Bell,
+  Stethoscope,
+  QrCode,
+  CreditCard,
+  Banknote,
+  ShieldCheck,
+  CheckCircle,
+} from 'lucide-react';
 import { sendMockWhatsapp } from '../utils/whatsapp';
 
 const Appointments = () => {
@@ -14,6 +31,11 @@ const Appointments = () => {
   const [doctors, setDoctors] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Doctor OPD Consultation Desk & Calling State
+  const [selectedDeskDoctorId, setSelectedDeskDoctorId] = useState('');
+  const [callingNext, setCallingNext] = useState(false);
+  const [callMessage, setCallMessage] = useState('');
 
   // Search & Filters State
   const [searchQuery, setSearchQuery] = useState('');
@@ -31,7 +53,7 @@ const Appointments = () => {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historySearchId, setHistorySearchId] = useState('');
 
-  // Booking Modal State
+  // Booking Modal State (with Real-life eSanjeevani Open OPD Window & Instant Payment)
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [bookingForm, setBookingForm] = useState({
     doctorId: '',
@@ -39,6 +61,10 @@ const Appointments = () => {
     date: '',
     timeSlot: '',
     symptoms: '',
+    paymentMethod: 'UPI',
+    paymentStatus: 'Paid',
+    transactionId: '',
+    isPaymentVerified: false,
   });
 
   // Doctor Availability slots state
@@ -172,6 +198,10 @@ const Appointments = () => {
         ]);
         setDoctors(docs);
         setDepartments(depts);
+        if (docs.length > 0) {
+          const myDoc = docs.find((d) => d.user?._id === user?._id || d.user === user?._id);
+          setSelectedDeskDoctorId(myDoc ? myDoc._id : docs[0]._id);
+        }
         await fetchAppointments();
       } catch (error) {
         console.error('Failed to initialize appointments page data:', error);
@@ -185,15 +215,79 @@ const Appointments = () => {
     }
   }, [user]);
 
+  // Audio notification chime for Hospital OPD queue calling
+  const playHospitalChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(659.25, ctx.currentTime + 0.18); // E5
+
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start(ctx.currentTime);
+      osc1.stop(ctx.currentTime + 0.2);
+      osc2.start(ctx.currentTime + 0.18);
+      osc2.stop(ctx.currentTime + 0.7);
+    } catch (e) {
+      console.log('Chime sound could not play:', e);
+    }
+  };
+
+  // Call Next Patient in Doctor's Queue (auto-advances queue)
+  const handleCallNextPatient = async (targetDocId) => {
+    const docId = targetDocId || selectedDeskDoctorId || (doctors.find(d => d.user?._id === user?._id || d.user === user?._id)?._id);
+    if (!docId) {
+      alert('Please select a doctor for the OPD consultation desk.');
+      return;
+    }
+    setCallingNext(true);
+    try {
+      const res = await api.post('/appointments/call-next', { doctorId: docId });
+      playHospitalChime();
+      setCallMessage(res.message);
+      setTimeout(() => setCallMessage(''), 7000);
+      await fetchAppointments();
+    } catch (err) {
+      alert(err.message || 'Failed to call next patient');
+    } finally {
+      setCallingNext(false);
+    }
+  };
+
   // Handle booking form submission
   const handleBookAppointment = async (e) => {
     e.preventDefault();
     if (!bookingForm.date || !bookingForm.timeSlot) {
-      alert('Please select a visual date and time slot from the weekly timetable!');
+      alert('Please select an OPD Session window and date from the timetable!');
       return;
     }
     try {
-      await api.post('/appointments', bookingForm);
+      const isCounter = bookingForm.paymentMethod === 'Counter';
+      const payload = {
+        doctorId: bookingForm.doctorId,
+        departmentId: bookingForm.departmentId,
+        date: bookingForm.date,
+        timeSlot: bookingForm.timeSlot,
+        symptoms: bookingForm.symptoms,
+        paymentMethod: bookingForm.paymentMethod,
+        paymentStatus: isCounter ? 'Pay At Hospital Desk' : (bookingForm.isPaymentVerified ? 'Paid' : 'Pending'),
+        transactionId: bookingForm.transactionId || (bookingForm.isPaymentVerified ? `UPI${Date.now().toString().slice(-8)}` : ''),
+      };
+
+      const res = await api.post('/appointments', payload);
       setIsBookModalOpen(false);
       setBookingForm({
         doctorId: '',
@@ -201,10 +295,16 @@ const Appointments = () => {
         date: '',
         timeSlot: '',
         symptoms: '',
+        paymentMethod: 'UPI',
+        paymentStatus: 'Paid',
+        transactionId: '',
+        isPaymentVerified: false,
       });
-      fetchAppointments();
-      sendMockWhatsapp(`✅ *[AS HOSPITAL]* New Appointment Request!\nDear Patient, we have received your booking request for a consultation. Status: PENDING approval. Check details at http://localhost:5173/appointments`);
-      alert('Appointment booked successfully!');
+      await fetchAppointments();
+      const bookedDoc = doctors.find(d => d._id === payload.doctorId);
+      const docName = bookedDoc?.user?.name || 'Doctor';
+      sendMockWhatsapp(`🎟️ *[CARE HMS OPD]* Token Generated!\nDear Patient, your appointment with Dr. ${docName} on ${payload.date} (${payload.timeSlot}) is confirmed with Token #${res.appointment?.serialNumber || 1}.\nPayment: ${payload.paymentStatus} (${payload.paymentMethod}).\nTrack live queue on TV screen: http://localhost:5173/queue-tv`);
+      alert(res.message || 'Appointment booked successfully!');
     } catch (error) {
       alert(error.message || 'Booking failed');
     }
@@ -311,7 +411,7 @@ const Appointments = () => {
     return serialA - serialB;
   });
 
-  // Timetable grid layout scheduler
+  // Timetable grid layout scheduler (Open-access OPD Session Windows - eSanjeevani Model)
   const renderWeeklyTimetable = () => {
     if (!bookingForm.doctorId) return null;
     const selectedDocObj = doctors.find((d) => d._id === bookingForm.doctorId);
@@ -331,11 +431,28 @@ const Appointments = () => {
       });
     }
 
-    const slotsTemplate = ['09:00 AM', '10:00 AM', '11:00 AM', '02:00 PM', '03:00 PM', '04:00 PM'];
+    // Flexible OPD Windows where any number of patients can register (eSanjeevani model)
+    const opdSessions = [
+      { slot: '09:00 AM - 11:00 AM', label: 'Morning OPD' },
+      { slot: '11:30 AM - 01:30 PM', label: 'Mid-Day OPD' },
+      { slot: '02:00 PM - 05:00 PM', label: 'Evening OPD' },
+      { slot: '05:30 PM - 07:30 PM', label: 'Specialist OPD' },
+    ];
 
     return (
       <div style={{ marginTop: '1.25rem', marginBottom: '1.25rem' }}>
-        <label className="form-label">🔍 Select Time Slot from Weekly Timetable Grid</label>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.3rem' }}>
+          <label className="form-label" style={{ margin: 0 }}>
+            🏥 Select OPD Session Window (eSanjeevani Model)
+          </label>
+          <span style={{ fontSize: '0.72rem', color: 'var(--accent-teal)', fontWeight: 700 }}>
+            ⚡ No Slot Blocking · Open Patient Admission
+          </span>
+        </div>
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+          Like real hospital OPDs, patients can register for the doctor's active window and are consulted in FIFO Token order.
+        </p>
+
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(5, 1fr)',
@@ -346,26 +463,29 @@ const Appointments = () => {
           {dates.map((dt) => {
             const isDateSelected = bookingForm.date === dt.isoString;
             return (
-              <div key={dt.isoString} style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: '75px' }}>
+              <div key={dt.isoString} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', minWidth: '85px' }}>
                 <div style={{
                   fontSize: '0.72rem', fontWeight: '800', textAlign: 'center',
                   background: isDateSelected ? 'var(--accent-blue)' : 'rgba(255,255,255,0.03)',
-                  padding: '0.25rem', borderRadius: '4px', border: '1px solid var(--glass-border)',
+                  padding: '0.3rem', borderRadius: '4px', border: '1px solid var(--glass-border)',
                   color: isDateSelected ? '#fff' : 'var(--text-secondary)'
                 }}>
                   <div>{dt.dayName.slice(0, 3)}</div>
-                  <div style={{ fontSize: '0.62rem', opacity: 0.8 }}>{dt.dateLabel}</div>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.85 }}>{dt.dateLabel}</div>
                 </div>
 
-                {slotsTemplate.map((slot) => {
-                  const isBooked = bookedSlots.includes(slot) && bookingForm.date === dt.isoString;
+                {opdSessions.map(({ slot, label }) => {
                   const isSelected = bookingForm.date === dt.isoString && bookingForm.timeSlot === slot;
+                  // Count existing bookings for this doctor & date
+                  const bookedInDay = appointments.filter(
+                    (a) => (a.doctor?._id === bookingForm.doctorId || a.doctor === bookingForm.doctorId) &&
+                           a.date && new Date(a.date).toISOString().split('T')[0] === dt.isoString
+                  ).length;
 
                   return (
                     <button
                       key={slot}
                       type="button"
-                      disabled={isBooked}
                       onClick={() => {
                         setBookingForm({
                           ...bookingForm,
@@ -374,17 +494,23 @@ const Appointments = () => {
                         });
                       }}
                       style={{
-                        fontSize: '0.68rem', padding: '0.3rem 0.2rem', borderRadius: '4px',
+                        fontSize: '0.67rem', padding: '0.4rem 0.25rem', borderRadius: '4px',
                         border: isSelected ? '1.5px solid var(--accent-blue)' : '1px solid var(--glass-border)',
-                        background: isSelected ? 'rgba(59, 130, 246, 0.15)' : isBooked ? 'rgba(244,63,94,0.04)' : 'rgba(255,255,255,0.01)',
-                        color: isSelected ? 'var(--accent-blue)' : isBooked ? 'var(--danger)' : '#fff',
-                        cursor: isBooked ? 'not-allowed' : 'pointer',
-                        opacity: isBooked ? 0.45 : 1,
-                        textDecoration: isBooked ? 'line-through' : 'none',
-                        transition: 'var(--transition-smooth)'
+                        background: isSelected ? 'rgba(59, 130, 246, 0.22)' : 'rgba(255,255,255,0.02)',
+                        color: isSelected ? 'var(--accent-blue)' : '#fff',
+                        cursor: 'pointer',
+                        transition: 'var(--transition-smooth)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '0.15rem'
                       }}
+                      title={`${label} (${slot}) - Current registrations: ${bookedInDay}`}
                     >
-                      {slot.replace(' ', '')}
+                      <span style={{ fontWeight: 700 }}>{slot.split(' - ')[0]}</span>
+                      <span style={{ fontSize: '0.58rem', opacity: 0.8, color: 'var(--accent-teal)' }}>
+                        {bookedInDay > 0 ? `${bookedInDay} in queue` : 'Available'}
+                      </span>
                     </button>
                   );
                 })}
@@ -400,12 +526,29 @@ const Appointments = () => {
     return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading appointments...</div>;
   }
 
+  const todayStr = new Date().toISOString().split('T')[0];
+  const activeDocObj = doctors.find((d) => d._id === selectedDeskDoctorId) || (doctors.length > 0 ? doctors[0] : null);
+  const targetDocId = activeDocObj?._id || '';
+
+  const todayDeskApps = appointments.filter((a) => {
+    const aDocId = a.doctor?._id || a.doctor;
+    const isThisDoc = targetDocId ? aDocId === targetDocId : true;
+    const isToday = a.date && new Date(a.date).toISOString().split('T')[0] === todayStr;
+    return isThisDoc && isToday;
+  });
+
+  const ongoingPatient = todayDeskApps.find((a) => a.status === 'ongoing');
+  const waitingPatients = todayDeskApps
+    .filter((a) => ['approved', 'waiting', 'pending'].includes(a.status))
+    .sort((a, b) => (a.serialNumber || 999) - (b.serialNumber || 999));
+  const completedTodayCount = todayDeskApps.filter((a) => a.status === 'completed').length;
+
   return (
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Appointments</h1>
-          <p className="page-subtitle">Schedule and view doctor consultations</p>
+          <h1 className="page-title">Appointments & OPD Desk</h1>
+          <p className="page-subtitle">Schedule, manage queue tokens, and conduct doctor consultations</p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <button
@@ -425,6 +568,243 @@ const Appointments = () => {
           )}
         </div>
       </div>
+
+      {/* ─── DOCTOR OPD CONSULTATION DESK & AUTO CALL CONSOLE ─── */}
+      {(user.role === 'doctor' || user.role === 'admin' || user.role === 'superadmin' || user.role?.startsWith('admin_') || user.role === 'receptionist') && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%)',
+          border: '1.5px solid rgba(59, 130, 246, 0.35)',
+          borderRadius: 'var(--border-radius)',
+          padding: '1.25rem 1.5rem',
+          marginBottom: '1.5rem',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.35)'
+        }}>
+          {/* Header with Doctor info & Next Call button */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                background: 'rgba(59, 130, 246, 0.2)',
+                color: 'var(--accent-blue)',
+                padding: '0.6rem',
+                borderRadius: '10px'
+              }}>
+                <Stethoscope size={24} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#fff', margin: 0 }}>
+                    Doctor OPD Consultation Desk
+                  </h2>
+                  <span style={{
+                    background: 'rgba(34, 197, 94, 0.15)',
+                    color: '#4ade80',
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
+                    padding: '0.15rem 0.5rem',
+                    borderRadius: '100px',
+                    fontSize: '0.72rem',
+                    fontWeight: 700
+                  }}>
+                    ● Live OPD Station
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+                  Auto-advances queue: Click <strong>"Call Next Patient"</strong> to automatically admit the next token into consultation cabin.
+                </p>
+              </div>
+            </div>
+
+            {/* Doctor selector for Admins/Receptionists */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+              {user.role !== 'doctor' && doctors.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Station Doctor:</span>
+                  <select
+                    className="form-select"
+                    style={{ margin: 0, padding: '0.4rem 0.75rem', fontSize: '0.82rem', width: '210px' }}
+                    value={selectedDeskDoctorId}
+                    onChange={(e) => setSelectedDeskDoctorId(e.target.value)}
+                  >
+                    {doctors.map((d) => (
+                      <option key={d._id} value={d._id}>
+                        Dr. {d.user?.name || 'Doctor'} ({d.specialization})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* CALL NEXT PATIENT BUTTON */}
+              <button
+                type="button"
+                className="btn btn-teal"
+                disabled={callingNext || waitingPatients.length === 0}
+                onClick={() => handleCallNextPatient(targetDocId)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.55rem 1.25rem',
+                  fontWeight: 800,
+                  fontSize: '0.9rem',
+                  background: waitingPatients.length === 0 ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)',
+                  boxShadow: waitingPatients.length > 0 ? '0 0 15px rgba(20, 184, 166, 0.4)' : 'none',
+                  cursor: waitingPatients.length === 0 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                <Play size={18} fill="currentColor" />
+                <span>{callingNext ? 'Calling Next Patient...' : '▶ Call Next Patient'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Audio/Alert Notification Toast */}
+          {callMessage && (
+            <div style={{
+              marginTop: '0.85rem',
+              background: 'rgba(20, 184, 166, 0.2)',
+              border: '1px solid var(--accent-teal)',
+              color: '#fff',
+              padding: '0.6rem 1rem',
+              borderRadius: '6px',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <Bell size={18} />
+              <span>{callMessage}</span>
+            </div>
+          )}
+
+          {/* Active Cabin vs Next in Queue Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+            {/* Current Patient In Cabin */}
+            <div style={{
+              background: ongoingPatient ? 'rgba(34, 197, 94, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+              border: ongoingPatient ? '1.5px solid rgba(34, 197, 94, 0.4)' : '1px solid var(--glass-border)',
+              borderRadius: '8px',
+              padding: '1rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 800, color: ongoingPatient ? '#4ade80' : 'var(--text-secondary)', textTransform: 'uppercase' }}>
+                  {ongoingPatient ? '🟢 Current Patient in Cabin' : '⚪ Consultation Cabin'}
+                </span>
+                {ongoingPatient && (
+                  <span style={{
+                    background: 'rgba(34, 197, 94, 0.2)',
+                    color: '#4ade80',
+                    fontWeight: 800,
+                    fontSize: '0.8rem',
+                    padding: '0.2rem 0.5rem',
+                    borderRadius: '4px'
+                  }}>
+                    Token #{ongoingPatient.serialNumber}
+                  </span>
+                )}
+              </div>
+
+              {ongoingPatient ? (
+                <div>
+                  <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#fff' }}>
+                    {ongoingPatient.patient?.user?.name || 'Patient'}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                    ID: {ongoingPatient.patient?.patientId} · Symptoms: {ongoingPatient.symptoms || 'General Consultation'}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem', flexWrap: 'wrap' }}>
+                    <Link
+                      to={`/appointments/${ongoingPatient._id}/call`}
+                      className="btn btn-teal btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem' }}
+                    >
+                      <Video size={13} />
+                      <span>Join Cabin Call</span>
+                    </Link>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem' }}
+                      onClick={() => {
+                        setActiveAppointment(ongoingPatient);
+                        setIsPrescribeModalOpen(true);
+                      }}
+                    >
+                      <FileText size={13} />
+                      <span>Prescribe</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', padding: '0.5rem 0' }}>
+                  Cabin is currently vacant. Click <strong>"▶ Call Next Patient"</strong> to admit Token #{waitingPatients[0]?.serialNumber || '1'}.
+                </div>
+              )}
+            </div>
+
+            {/* Next Patient Preview & Queue Stats */}
+            <div style={{
+              background: 'rgba(59, 130, 246, 0.05)',
+              border: '1px solid rgba(59, 130, 246, 0.25)',
+              borderRadius: '8px',
+              padding: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between'
+            }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-blue)', textTransform: 'uppercase' }}>
+                    👉 Next in Waiting Queue
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    Total Waiting: <strong>{waitingPatients.length}</strong>
+                  </span>
+                </div>
+
+                {waitingPatients.length > 0 ? (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{
+                        background: 'rgba(59, 130, 246, 0.2)',
+                        color: 'var(--accent-blue)',
+                        padding: '0.2rem 0.5rem',
+                        borderRadius: '4px',
+                        fontWeight: 800,
+                        fontSize: '0.85rem'
+                      }}>
+                        #{waitingPatients[0].serialNumber}
+                      </span>
+                      <span style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff' }}>
+                        {waitingPatients[0].patient?.user?.name || 'Patient'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>
+                      Session: {waitingPatients[0].timeSlot} · Reason: {waitingPatients[0].symptoms}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', padding: '0.5rem 0' }}>
+                    🎉 No patients currently waiting in today's queue!
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                <span>Today's Completed: <strong style={{ color: '#4ade80' }}>{completedTodayCount}</strong></span>
+                <button
+                  type="button"
+                  onClick={() => window.open('/queue-tv', '_blank')}
+                  style={{ background: 'none', border: 'none', color: 'var(--accent-teal)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem' }}
+                >
+                  <Tv size={13} />
+                  <span>Waiting Hall TV Board ↗</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Search & Filter Controls */}
       <div style={{
@@ -715,7 +1095,9 @@ const Appointments = () => {
                         History
                       </button>
                     )}
-                    {user.role === 'patient' && app.status === 'pending' && (
+
+                    {/* Patient can cancel their waiting booking */}
+                    {user.role === 'patient' && ['pending', 'approved'].includes(app.status) && (
                       <button
                         className="btn btn-danger btn-sm"
                         onClick={() => handleStatusChange(app._id, 'cancelled')}
@@ -724,52 +1106,62 @@ const Appointments = () => {
                       </button>
                     )}
 
-                    {(user.role === 'doctor' || user.role === 'admin') && app.status === 'pending' && (
+                    {/* Ongoing appointment active cabin buttons */}
+                    {app.status === 'ongoing' && (
                       <>
-                        <button
+                        <Link
+                          to={`/appointments/${app._id}/call`}
                           className="btn btn-teal btn-sm"
-                          style={{ padding: '0.25rem 0.5rem' }}
-                          onClick={() => handleStatusChange(app._id, 'approved')}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontWeight: 700 }}
                         >
-                          <Check size={16} />
-                        </button>
-                        <button
-                          className="btn btn-danger btn-sm"
-                          style={{ padding: '0.25rem 0.5rem' }}
-                          onClick={() => handleStatusChange(app._id, 'cancelled')}
-                        >
-                          <X size={16} />
-                        </button>
+                          <Video size={14} />
+                          <span>In Cabin (Join)</span>
+                        </Link>
+                        {user.role === 'doctor' && (
+                          <button
+                            className="btn btn-primary btn-sm"
+                            onClick={() => {
+                              setActiveAppointment(app);
+                              setIsPrescribeModalOpen(true);
+                            }}
+                          >
+                            <FileText size={14} />
+                            <span>Prescribe</span>
+                          </button>
+                        )}
                       </>
                     )}
 
+                    {/* Waiting/Approved appointments in queue */}
                     {app.status === 'approved' && (
-                      <Link
-                        to={`/appointments/${app._id}/call`}
-                        className="btn btn-teal btn-sm"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                      >
-                        <Video size={14} />
-                        <span>Join Call</span>
-                      </Link>
-                    )}
-
-                    {user.role === 'doctor' && app.status === 'approved' && (
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => {
-                          setActiveAppointment(app);
-                          setIsPrescribeModalOpen(true);
-                        }}
-                      >
-                        <FileText size={14} />
-                        <span>Prescribe</span>
-                      </button>
+                      <>
+                        <Link
+                          to={`/appointments/${app._id}/call`}
+                          className="btn btn-secondary btn-sm"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem' }}
+                        >
+                          <Video size={13} />
+                          <span>Join Room</span>
+                        </Link>
+                        {user.role === 'doctor' && (
+                          <button
+                            className="btn btn-primary btn-sm"
+                            style={{ fontSize: '0.75rem' }}
+                            onClick={() => {
+                              setActiveAppointment(app);
+                              setIsPrescribeModalOpen(true);
+                            }}
+                          >
+                            <FileText size={13} />
+                            <span>Prescribe</span>
+                          </button>
+                        )}
+                      </>
                     )}
 
                     {app.status === 'completed' && (
                       <span style={{ fontSize: '0.85rem', color: 'var(--success)', fontWeight: 600 }}>
-                        Completed
+                        ✓ Completed
                       </span>
                     )}
 
@@ -786,15 +1178,15 @@ const Appointments = () => {
         )}
       </div>
 
-      {/* Booking Modal (Patient-only) */}
+      {/* Booking Modal (eSanjeevani Open OPD Window & Integrated UPI Payment) */}
       <Modal
         isOpen={isBookModalOpen}
         onClose={() => setIsBookModalOpen(false)}
-        title="Book Doctor Appointment"
+        title="🏥 Book OPD Consultation (eSanjeevani Model)"
       >
         <form onSubmit={handleBookAppointment}>
           <div className="form-group">
-            <label className="form-label">Select Department *</label>
+            <label className="form-label">Select Medical Department *</label>
             <select
               className="form-select"
               value={bookingForm.departmentId}
@@ -814,7 +1206,7 @@ const Appointments = () => {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Select Doctor *</label>
+            <label className="form-label">Select Specialist Doctor *</label>
             <select
               className="form-select"
               value={bookingForm.doctorId}
@@ -827,39 +1219,274 @@ const Appointments = () => {
                 .filter((doc) => !bookingForm.departmentId || doc.department?._id === bookingForm.departmentId)
                 .map((doc) => (
                   <option key={doc._id} value={doc._id}>
-                    {doc.user?.name} ({doc.specialization} - Fee: ₹{doc.consultationFee})
+                    Dr. {doc.user?.name} ({doc.specialization} - Fee: ₹{doc.consultationFee})
                   </option>
                 ))}
             </select>
           </div>
 
-          {/* Render Timetable Grid Selector */}
+          {/* Render Open-access OPD Timetable Window */}
           {renderWeeklyTimetable()}
 
-          {/* Selected Schedule display panel */}
-          {bookingForm.date && bookingForm.timeSlot && (
-            <div style={{
-              fontSize: '0.8rem', color: 'var(--accent-teal)', fontWeight: 700,
-              background: 'rgba(20, 184, 166, 0.08)', padding: '0.5rem', borderRadius: '4px',
-              border: '1px solid rgba(20, 184, 166, 0.2)', marginBottom: '1.25rem', textAlign: 'center'
-            }}>
-              Selected Schedule: {new Date(bookingForm.date).toLocaleDateString()} at {bookingForm.timeSlot}
-            </div>
-          )}
+          {/* Real-time Projected Token Number Banner */}
+          {bookingForm.date && bookingForm.timeSlot && (() => {
+            const bookedDoc = doctors.find((d) => d._id === bookingForm.doctorId);
+            const docFee = bookedDoc?.consultationFee || 500;
+            const projectedToken = appointments.filter(
+              (a) => (a.doctor?._id === bookingForm.doctorId || a.doctor === bookingForm.doctorId) &&
+                     a.date && new Date(a.date).toISOString().split('T')[0] === bookingForm.date
+            ).length + 1;
+
+            return (
+              <div style={{
+                background: 'rgba(59, 130, 246, 0.08)',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                borderRadius: '6px',
+                padding: '0.75rem',
+                marginBottom: '1rem',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.5rem'
+              }}>
+                <div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>SCHEDULED OPD SESSION</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>
+                    {new Date(bookingForm.date).toLocaleDateString()} · {bookingForm.timeSlot}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>PROJECTED QUEUE POSITION</div>
+                  <span style={{
+                    background: 'var(--accent-blue)',
+                    color: '#fff',
+                    padding: '0.15rem 0.6rem',
+                    borderRadius: '100px',
+                    fontWeight: 800,
+                    fontSize: '0.85rem'
+                  }}>
+                    🎟️ Token #{projectedToken}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="form-group">
-            <label className="form-label">Symptoms / Reasons *</label>
+            <label className="form-label">Symptoms / Reason for Consultation *</label>
             <textarea
               className="form-textarea"
-              placeholder="Describe what symptoms you are experiencing..."
+              rows={2}
+              placeholder="Describe your health symptoms, duration, or reason for visit..."
               value={bookingForm.symptoms}
               onChange={(e) => setBookingForm({ ...bookingForm, symptoms: e.target.value })}
               required
             />
           </div>
 
-          <button type="submit" className="btn btn-primary btn-full">
-            Confirm Booking
+          {/* Integrated Payment Options at Booking Time */}
+          {(() => {
+            const bookedDoc = doctors.find((d) => d._id === bookingForm.doctorId);
+            const docFee = bookedDoc?.consultationFee || 500;
+
+            return (
+              <div style={{
+                background: 'rgba(15, 23, 42, 0.55)',
+                border: '1px solid var(--glass-border)',
+                borderRadius: '8px',
+                padding: '1rem',
+                marginBottom: '1.25rem'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <label className="form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <ShieldCheck size={16} color="var(--accent-teal)" />
+                    <span>Consultation Fee & Payment Options</span>
+                  </label>
+                  <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--accent-teal)' }}>
+                    ₹{docFee}
+                  </span>
+                </div>
+
+                {/* Payment Method Selector Tabs */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '0.85rem' }}>
+                  {[
+                    { id: 'UPI', label: 'Instant UPI QR', icon: <QrCode size={15} /> },
+                    { id: 'Card', label: 'Card / Net Banking', icon: <CreditCard size={15} /> },
+                    { id: 'Counter', label: 'Pay at Counter', icon: <Banknote size={15} /> },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setBookingForm({ ...bookingForm, paymentMethod: m.id, isPaymentVerified: m.id === 'Counter' ? false : bookingForm.isPaymentVerified })}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '0.3rem',
+                        padding: '0.5rem 0.25rem',
+                        borderRadius: '6px',
+                        border: bookingForm.paymentMethod === m.id ? '1.5px solid var(--accent-teal)' : '1px solid var(--glass-border)',
+                        background: bookingForm.paymentMethod === m.id ? 'rgba(20, 184, 166, 0.15)' : 'rgba(255,255,255,0.02)',
+                        color: bookingForm.paymentMethod === m.id ? 'var(--accent-teal)' : 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        fontSize: '0.72rem',
+                        fontWeight: 700
+                      }}
+                    >
+                      {m.icon}
+                      <span>{m.label}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* UPI Option Body */}
+                {bookingForm.paymentMethod === 'UPI' && (
+                  <div style={{
+                    background: 'rgba(0,0,0,0.25)',
+                    padding: '0.85rem',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
+                      <div style={{
+                        background: '#fff',
+                        padding: '0.5rem',
+                        borderRadius: '8px',
+                        display: 'inline-block',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                      }}>
+                        <svg width="105" height="105" viewBox="0 0 100 100">
+                          <rect width="100" height="100" fill="#ffffff" />
+                          <rect x="10" y="10" width="26" height="26" fill="#0f172a" />
+                          <rect x="14" y="14" width="18" height="18" fill="#ffffff" />
+                          <rect x="18" y="18" width="10" height="10" fill="#0f172a" />
+                          <rect x="64" y="10" width="26" height="26" fill="#0f172a" />
+                          <rect x="68" y="14" width="18" height="18" fill="#ffffff" />
+                          <rect x="72" y="18" width="10" height="10" fill="#0f172a" />
+                          <rect x="10" y="64" width="26" height="26" fill="#0f172a" />
+                          <rect x="14" y="68" width="18" height="18" fill="#ffffff" />
+                          <rect x="18" y="72" width="10" height="10" fill="#0f172a" />
+                          <rect x="42" y="10" width="6" height="6" fill="#0f172a" />
+                          <rect x="52" y="10" width="6" height="6" fill="#0f172a" />
+                          <rect x="42" y="24" width="6" height="12" fill="#0f172a" />
+                          <rect x="42" y="44" width="16" height="16" fill="#0d9488" rx="2" />
+                          <text x="50" y="56" fontSize="12" fontWeight="bold" fill="#ffffff" textAnchor="middle">₹</text>
+                          <rect x="10" y="44" width="8" height="8" fill="#0f172a" />
+                          <rect x="24" y="48" width="8" height="8" fill="#0f172a" />
+                          <rect x="64" y="44" width="14" height="6" fill="#0f172a" />
+                          <rect x="80" y="44" width="10" height="12" fill="#0f172a" />
+                          <rect x="42" y="68" width="8" height="14" fill="#0f172a" />
+                          <rect x="56" y="64" width="12" height="6" fill="#0f172a" />
+                          <rect x="64" y="74" width="16" height="16" fill="#0f172a" />
+                          <rect x="84" y="74" width="6" height="6" fill="#0f172a" />
+                        </svg>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fff' }}>
+                      Scan & Pay ₹{docFee} with any UPI App
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                      UPI ID: <span style={{ color: 'var(--accent-teal)' }}>carehms.opd@icici</span> (GPay / PhonePe / Paytm / BHIM)
+                    </div>
+
+                    <div style={{ marginTop: '0.65rem' }}>
+                      {bookingForm.isPaymentVerified ? (
+                        <div style={{
+                          background: 'rgba(34, 197, 94, 0.15)',
+                          color: '#4ade80',
+                          border: '1px solid rgba(34, 197, 94, 0.3)',
+                          padding: '0.4rem',
+                          borderRadius: '4px',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.35rem'
+                        }}>
+                          <CheckCircle size={15} />
+                          <span>UPI Payment Verified: ₹{docFee} (Ref: {bookingForm.transactionId})</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn btn-teal btn-sm"
+                          onClick={() => {
+                            const mockTxn = 'UPI' + Date.now().toString().slice(-8);
+                            setBookingForm({
+                              ...bookingForm,
+                              isPaymentVerified: true,
+                              paymentStatus: 'Paid',
+                              transactionId: mockTxn
+                            });
+                          }}
+                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.85rem' }}
+                        >
+                          ✓ Click to Simulate / Verify UPI Payment
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Card Option Body */}
+                {bookingForm.paymentMethod === 'Card' && (
+                  <div style={{
+                    background: 'rgba(0,0,0,0.25)',
+                    padding: '0.85rem',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    fontSize: '0.8rem'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <span>Credit / Debit Card or NetBanking</span>
+                      <span style={{ fontWeight: 700, color: 'var(--accent-teal)' }}>Amount: ₹{docFee}</span>
+                    </div>
+                    {bookingForm.isPaymentVerified ? (
+                      <div style={{ color: '#4ade80', fontWeight: 700, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <CheckCircle size={14} />
+                        <span>Card Authorized (Ref: {bookingForm.transactionId})</span>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => {
+                          const mockTxn = 'CARD' + Date.now().toString().slice(-8);
+                          setBookingForm({
+                            ...bookingForm,
+                            isPaymentVerified: true,
+                            paymentStatus: 'Paid',
+                            transactionId: mockTxn
+                          });
+                        }}
+                      >
+                        💳 Pay ₹{docFee} via Demo Card Gateway
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Counter / Hospital Desk Option Body */}
+                {bookingForm.paymentMethod === 'Counter' && (
+                  <div style={{
+                    background: 'rgba(245, 158, 11, 0.08)',
+                    padding: '0.75rem 0.85rem',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(245, 158, 11, 0.25)',
+                    fontSize: '0.78rem',
+                    color: '#fcd34d'
+                  }}>
+                    ℹ️ <strong>Pay at Hospital Registration Counter:</strong> Your appointment token will be issued immediately. You can pay the consultation fee (₹{docFee}) on arrival before consultation.
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          <button type="submit" className="btn btn-primary btn-full" style={{ padding: '0.75rem', fontWeight: 800 }}>
+            Confirm Booking & Generate OPD Token
           </button>
         </form>
       </Modal>

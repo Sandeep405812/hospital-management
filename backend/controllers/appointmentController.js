@@ -7,7 +7,7 @@ import Billing from '../models/Billing.js';
 // @route   POST /api/appointments
 // @access  Private
 export const createAppointment = async (req, res) => {
-  const { doctorId, departmentId, date, timeSlot, symptoms } = req.body;
+  const { doctorId, departmentId, date, timeSlot, symptoms, paymentMethod, paymentStatus, transactionId } = req.body;
 
   try {
     // Check if the current user is a patient
@@ -22,33 +22,20 @@ export const createAppointment = async (req, res) => {
       return res.status(404).json({ message: 'Doctor not found' });
     }
 
-    // Scheduling collision detection: Enforce slot scheduling algorithm
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    const collision = await Appointment.findOne({
-      doctor: doctor._id,
-      date: { $gte: startOfDay, $lte: endOfDay },
-      timeSlot,
-      status: { $in: ['pending', 'approved'] },
-    });
-
-    if (collision) {
-      return res.status(400).json({
-        message: 'This doctor is already booked for this time slot. Please select another slot or date.',
-      });
-    }
-
-    // Calculate Serial Number (FIFO) for this doctor on this day
+    // Calculate Sequential Token Serial Number (FIFO queue model like eSanjeevani / Hospital OPD)
+    // Multiple patients can book into the doctor's OPD session without being blocked
     const existingCount = await Appointment.countDocuments({
       doctor: doctor._id,
       date: { $gte: startOfDay, $lte: endOfDay },
     });
     const serialNumber = existingCount + 1;
 
-    // Create the appointment
+    // Create appointment directly in confirmed waiting queue
     const appointment = await Appointment.create({
       patient: patient._id,
       doctor: doctor._id,
@@ -58,6 +45,10 @@ export const createAppointment = async (req, res) => {
       symptoms,
       fee: doctor.consultationFee,
       serialNumber,
+      status: 'approved',
+      paymentStatus: paymentStatus || 'Pending',
+      paymentMethod: paymentMethod || 'Counter',
+      transactionId: transactionId || '',
     });
 
     if (appointment) {
@@ -72,11 +63,12 @@ export const createAppointment = async (req, res) => {
         amount: appointment.fee,
         tax,
         total,
-        status: 'unpaid',
+        status: paymentStatus === 'Paid' ? 'paid' : 'unpaid',
+        paymentMethod: paymentMethod || 'Counter',
       });
 
       res.status(201).json({
-        message: 'Appointment booked successfully and invoice generated',
+        message: `Appointment booked successfully! Token #${serialNumber} generated in Doctor's OPD Queue.`,
         appointment,
       });
     } else {
@@ -299,6 +291,83 @@ export const getBookedSlots = async (req, res) => {
 
     const bookedSlots = appointments.map((app) => app.timeSlot);
     res.json(bookedSlots);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Call next patient in doctor's queue (auto-advances queue)
+// @route   POST /api/appointments/call-next
+// @access  Private (Doctor / Admin)
+export const callNextPatient = async (req, res) => {
+  let { doctorId, date } = req.body;
+
+  try {
+    if (!doctorId && req.user.role === 'doctor') {
+      const doc = await Doctor.findOne({ user: req.user._id });
+      if (doc) doctorId = doc._id;
+    }
+
+    if (!doctorId) {
+      return res.status(400).json({ message: 'Doctor ID is required' });
+    }
+
+    // Timezone-safe date window (matches both UTC and Local timezone appointments for the target day)
+    const baseDate = date ? new Date(date) : new Date();
+    const startOfDay = new Date(baseDate);
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const localStart = new Date(baseDate);
+    localStart.setHours(0, 0, 0, 0);
+    const dayStart = new Date(Math.min(startOfDay.getTime(), localStart.getTime()) - 6 * 3600 * 1000);
+
+    const endOfDay = new Date(baseDate);
+    endOfDay.setUTCHours(23, 59, 59, 999);
+    const localEnd = new Date(baseDate);
+    localEnd.setHours(23, 59, 59, 999);
+    const dayEnd = new Date(Math.max(endOfDay.getTime(), localEnd.getTime()) + 6 * 3600 * 1000);
+
+    // 1. If any appointment is currently 'ongoing', mark it as 'completed'
+    const ongoingApp = await Appointment.findOne({
+      doctor: doctorId,
+      date: { $gte: dayStart, $lte: dayEnd },
+      status: 'ongoing',
+    });
+
+    if (ongoingApp) {
+      ongoingApp.status = 'completed';
+      await ongoingApp.save();
+    }
+
+    // 2. Find the next waiting patient in FIFO order
+    const nextApp = await Appointment.findOne({
+      doctor: doctorId,
+      date: { $gte: dayStart, $lte: dayEnd },
+      status: { $in: ['approved', 'waiting', 'pending'] },
+    })
+      .sort({ serialNumber: 1, createdAt: 1 })
+      .populate('patient')
+      .populate({
+        path: 'patient',
+        populate: { path: 'user', select: 'name email phoneNumber gender' },
+      });
+
+    if (!nextApp) {
+      return res.json({
+        message: 'No more waiting patients in queue for this doctor today.',
+        currentOngoing: null,
+        previousCompleted: ongoingApp || null,
+      });
+    }
+
+    // 3. Mark next patient as ongoing
+    nextApp.status = 'ongoing';
+    await nextApp.save();
+
+    res.json({
+      message: `Token #${nextApp.serialNumber} (${nextApp.patient?.user?.name || 'Patient'}) called for consultation!`,
+      currentOngoing: nextApp,
+      previousCompleted: ongoingApp || null,
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

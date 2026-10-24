@@ -5,12 +5,14 @@ import {
   updateAppointmentStatus,
   getAppointmentAnalytics,
   getBookedSlots,
+  callNextPatient,
 } from '../controllers/appointmentController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
 router.route('/booked-slots').get(protect, getBookedSlots);
+router.route('/call-next').post(protect, callNextPatient);
 
 router
   .route('/')

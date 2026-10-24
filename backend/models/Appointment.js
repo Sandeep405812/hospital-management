@@ -39,8 +39,21 @@ const appointmentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['pending', 'approved', 'cancelled', 'completed', 'ongoing'],
-      default: 'pending',
+      enum: ['pending', 'approved', 'cancelled', 'completed', 'ongoing', 'waiting'],
+      default: 'approved',
+    },
+    paymentStatus: {
+      type: String,
+      enum: ['Paid', 'Pending', 'Pay At Hospital Desk'],
+      default: 'Pending',
+    },
+    paymentMethod: {
+      type: String,
+      default: 'Counter',
+    },
+    transactionId: {
+      type: String,
+      default: '',
     },
     fee: {
       type: Number,
