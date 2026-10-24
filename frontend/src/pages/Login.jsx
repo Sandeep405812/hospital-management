@@ -23,16 +23,19 @@ const Login = () => {
     );
   }, []);
 
+  const ROLE_ACCOUNTS = {
+    patient: { email: 'patient@hospital.com', pass: 'patientpassword123', label: 'Patient' },
+    doctor: { email: 'doctor@hospital.com', pass: 'doctorpassword123', label: 'Doctor' },
+    superadmin: { email: 'superadmin@hospital.com', pass: 'superadmin123', label: '👑 Super Admin' },
+    admin_beds: { email: 'bedadmin@hospital.com', pass: 'bedadmin123', label: '🛏️ Bed Admin' },
+    admin_doctors: { email: 'doctoradmin@hospital.com', pass: 'doctoradmin123', label: '🩺 Doc Admin' },
+    admin: { email: 'admin@hospital.com', pass: 'adminpassword123', label: 'Admin' },
+  };
+
   useEffect(() => {
-    if (activeRole === 'patient') {
-      setEmail('patient@hospital.com');
-      setPassword('patientpassword123');
-    } else if (activeRole === 'doctor') {
-      setEmail('doctor@hospital.com');
-      setPassword('doctorpassword123');
-    } else if (activeRole === 'admin') {
-      setEmail('admin@hospital.com');
-      setPassword('adminpassword123');
+    if (ROLE_ACCOUNTS[activeRole]) {
+      setEmail(ROLE_ACCOUNTS[activeRole].email);
+      setPassword(ROLE_ACCOUNTS[activeRole].pass);
     }
   }, [activeRole]);
 
@@ -68,27 +71,28 @@ const Login = () => {
         </div>
 
         {/* Role tabs switcher */}
-        <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1.25rem', backgroundColor: 'var(--bg-primary)', padding: '0.3rem', borderRadius: 'var(--border-radius-sm)' }}>
-          {['patient', 'doctor', 'admin'].map((role) => (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem', marginBottom: '1.25rem', backgroundColor: 'var(--bg-primary)', padding: '0.3rem', borderRadius: 'var(--border-radius-sm)' }}>
+          {Object.entries(ROLE_ACCOUNTS).map(([rKey, rVal]) => (
             <button
-              key={role}
+              key={rKey}
               type="button"
-              onClick={() => setActiveRole(role)}
+              onClick={() => setActiveRole(rKey)}
               style={{
-                flex: 1,
-                padding: '0.45rem 0.6rem',
+                padding: '0.45rem 0.4rem',
                 border: 'none',
                 borderRadius: '6px',
-                fontSize: '0.8rem',
+                fontSize: '0.75rem',
                 fontWeight: 700,
-                textTransform: 'capitalize',
                 cursor: 'pointer',
-                backgroundColor: activeRole === role ? 'var(--accent-teal)' : 'transparent',
-                color: activeRole === role ? '#fff' : 'var(--text-secondary)',
-                transition: 'var(--transition-smooth)'
+                backgroundColor: activeRole === rKey ? 'var(--accent-teal)' : 'transparent',
+                color: activeRole === rKey ? '#fff' : 'var(--text-secondary)',
+                transition: 'var(--transition-smooth)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
               }}
             >
-              {role}
+              {rVal.label}
             </button>
           ))}
         </div>

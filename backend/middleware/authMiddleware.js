@@ -58,8 +58,34 @@ export const authorize = (...roles) => {
     if (!req.user) {
       return res.status(401).json({ message: 'Not authorized' });
     }
-    // Admin is a superuser and is always authorized to bypass role checks
-    if (req.user.role === 'admin' || roles.includes(req.user.role)) {
+    const role = req.user.role;
+    // Superadmin has absolute global access to all routes
+    if (role === 'superadmin') {
+      return next();
+    }
+    // General Admin has system-wide administrative access
+    if (role === 'admin') {
+      return next();
+    }
+    // Explicit role match
+    if (roles.includes(role)) {
+      return next();
+    }
+    // Specialized Domain Admin permissions:
+    // Bed Admin can manage beds, wards, and discharge summaries
+    if (role === 'admin_beds' && (roles.includes('admin') || roles.includes('receptionist') || roles.includes('beds'))) {
+      return next();
+    }
+    // Doctor Admin can manage doctors, departments, and medical schedules
+    if (role === 'admin_doctors' && (roles.includes('admin') || roles.includes('doctor') || roles.includes('doctors'))) {
+      return next();
+    }
+    // Helpdesk Admin can manage appointments, tokens, and patient reception
+    if (role === 'admin_helpdesk' && (roles.includes('admin') || roles.includes('receptionist') || roles.includes('appointment'))) {
+      return next();
+    }
+    // Staff Admin can manage staff records and personnel
+    if (role === 'admin_staff' && (roles.includes('admin') || roles.includes('staff'))) {
       return next();
     }
     return res.status(403).json({

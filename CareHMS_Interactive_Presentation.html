@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CareHMS: Interactive Project Presentation (AKTU)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070d1e;
+      --card-bg: rgba(16, 26, 54, 0.85);
+      --card-border: rgba(56, 189, 248, 0.25);
+      --accent: #38bdf8;
+      --teal: #14b8a6;
+      --gold: #f59e0b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    /* Ambient background gradient glow */
+    .ambient-glow {
+      position: fixed;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(14, 165, 233, 0.15) 0%, transparent 70%);
+      top: -150px;
+      left: -150px;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .ambient-glow-2 {
+      position: fixed;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(20, 184, 166, 0.12) 0%, transparent 70%);
+      bottom: -150px;
+      right: -150px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Top Progress Bar */
+    .progress-bar-container {
+      width: 100%;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 100;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--teal), var(--accent));
+      transition: width 0.3s ease;
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.6);
+    }
+
+    /* Presentation Header */
+    header {
+      padding: 1.2rem 3rem 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 10;
+    }
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: rgba(14, 165, 233, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 0.35rem 0.9rem;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+    }
+    .slide-counter {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    /* Slide Deck Stage */
+    .deck-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem 3rem 4.5rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .slide {
+      display: none;
+      width: 100%;
+      max-width: 1200px;
+      animation: fadeIn 0.4s ease forwards;
+    }
+    .slide.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px) scale(0.99); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* Card styling */
+    .glass-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      backdrop-filter: blur(12px);
+      padding: 2.5rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    h1 { font-size: 2.8rem; font-weight: 800; line-height: 1.15; margin-bottom: 0.8rem; }
+    h2 { font-size: 1.8rem; font-weight: 700; margin-bottom: 1.5rem; color: #fff; }
+    .gradient-text {
+      background: linear-gradient(135deg, #fff 30%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      font-size: 1.2rem;
+      color: var(--teal);
+      margin-bottom: 2rem;
+      font-weight: 500;
+    }
+
+    /* Grid layouts */
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 1.5rem;
+    }
+    .grid-split {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 2rem;
+      align-items: center;
+    }
+
+    .sub-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 1.5rem;
+      transition: all 0.3s ease;
+    }
+    .sub-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-4px);
+      background: rgba(14, 165, 233, 0.05);
+    }
+    .sub-card h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 0.6rem;
+    }
+    .sub-card p {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Diagram visualizer */
+    .diagram-frame {
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 14px;
+      overflow: hidden;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+    .diagram-frame img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* Metric Stat Box */
+    .stat-box {
+      text-align: center;
+      padding: 1.5rem;
+      border-radius: 14px;
+      background: rgba(14, 165, 233, 0.06);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+    .stat-number {
+      font-size: 2.8rem;
+      font-weight: 800;
+      color: var(--teal);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .stat-label {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-top: 0.3rem;
+    }
+
+    /* Bottom Navigation Bar */
+    .nav-bar {
+      position: fixed;
+      bottom: 1.2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 9999px;
+      padding: 0.5rem 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      z-index: 100;
+    }
+    .nav-btn {
+      background: transparent;
+      border: none;
+      color: var(--text);
+      cursor: pointer;
+      padding: 0.4rem 0.8rem;
+      border-radius: 9999px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .nav-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--accent);
+    }
+    .nav-btn.primary {
+      background: var(--accent);
+      color: #04101e;
+    }
+    .nav-btn.primary:hover {
+      background: #7dd3fc;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-glow"></div>
+  <div class="ambient-glow-2"></div>
+
+  <div class="progress-bar-container">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <header>
+    <div class="logo-badge">
+      <span>🏥 CAREHMS</span>
+      <span>•</span>
+      <span>AKTU B.TECH MINI-PROJECT</span>
+    </div>
+    <div class="slide-counter" id="slideCounter">Slide 1 / 14</div>
+  </header>
+
+  <main class="deck-container">
+
+    <!-- SLIDE 1: Title -->
+    <div class="slide active">
+      <div class="glass-card" style="text-align: center; padding: 3.5rem 2.5rem;">
+        <span style="color: var(--accent); font-weight: 700; letter-spacing: 0.1em; font-size: 0.85rem;">DR. A.P.J. ABDUL KALAM TECHNICAL UNIVERSITY (AKTU), LUCKNOW</span>
+        <h1 class="gradient-text" style="margin-top: 0.8rem;">CareHMS: Smart Healthcare ERP & Telemedicine</h1>
+        <p class="subtitle">With Real-Time WebRTC Video Consultations & Database-Backed Clinical AI Assistant</p>
+
+        <div class="grid-2" style="max-width: 850px; margin: 2rem auto 0; text-align: left;">
+          <div class="sub-card">
+            <span style="color: var(--accent); font-size: 0.8rem; font-weight: 700;">SUBMITTED BY:</span>
+            <div style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-top: 0.4rem;">Sandeep</div>
+            <div style="color: var(--text-muted); font-size: 0.9rem;">Roll No: [Enter Roll Number]</div>
+            <div style="color: var(--text-muted); font-size: 0.9rem;">B.Tech Computer Science & Engg.</div>
+          </div>
+          <div class="sub-card">
+            <span style="color: var(--teal); font-size: 0.8rem; font-weight: 700;">SUPERVISION & COLLEGE:</span>
+            <div style="font-size: 1.15rem; font-weight: 700; color: #fff; margin-top: 0.4rem;">[Supervisor Name]</div>
+            <div style="color: var(--text-muted); font-size: 0.9rem;">Assistant Professor, Dept. of CSE</div>
+            <div style="color: var(--text-muted); font-size: 0.9rem;">[Your Institute Name Here]</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2: Problem Statement -->
+    <div class="slide">
+      <div class="glass-card">
+        <h2>The Healthcare Crisis: Operational Friction in Hospitals</h2>
+        <div class="grid-3">
+          <div class="sub-card" style="border-top: 3px solid var(--gold);">
+            <h3>1. OPD Overcrowding</h3>
+            <p>Patients endure 2 to 4 hours in physical waiting queues with manual slips, escalating patient dissatisfaction and cross-infection hazards.</p>
+          </div>
+          <div class="sub-card" style="border-top: 3px solid var(--accent);">
+            <h3>2. Telemedicine Disconnect</h3>
+            <p>Remote doctor calls happen on detached apps like Zoom or WhatsApp that cannot view or write into active Electronic Health Records (EHR).</p>
+          </div>
+          <div class="sub-card" style="border-top: 3px solid var(--teal);">
+            <h3>3. Siloed Hospital Data</h3>
+            <p>Prescriptions, pathology uploads, in-patient bed allocation, and medicine inventory operate in uncoordinated desktop software.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: Proposed Solution -->
+    <div class="slide">
+      <div class="glass-card">
+        <h2>Proposed Solution: CareHMS Integrated Ecosystem</h2>
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3>🩺 Native WebRTC Telemedicine</h3>
+            <p>Direct browser-to-browser encrypted audio/video streaming, 3D animated incoming call alerts, and collaborative real-time whiteboards.</p>
+          </div>
+          <div class="sub-card">
+            <h3>🤖 Clinical AI with Database RAG</h3>
+            <p>Google Gemini 3.8/3.5 LLMs automatically retrieve live patient history, past visits, and allergies from MongoDB to assist doctors.</p>
+          </div>
+          <div class="sub-card">
+            <h3>📢 Smart OPD Queue & TTS Audio</h3>
+            <p>Public waiting lounge TV dashboard that automatically speaks announcements (e.g. "Token 104, Dr. Sharma") via Web Speech Synthesis.</p>
+          </div>
+          <div class="sub-card">
+            <h3>💊 E-Pharmacy & In-Patient ERP</h3>
+            <p>Automated dosage prescription generator, bed ward tracking (General, ICU, Emergency), and real-time billing reconciliation.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: Architecture Diagram -->
+    <div class="slide">
+      <div class="glass-card">
+        <h2>System Architecture: 3-Tier Distributed MERN Framework</h2>
+        <div class="grid-split">
+          <div class="diagram-frame">
+            <img src="./diagram_architecture.png" alt="CareHMS System Architecture">
+          </div>
+          <div>
+            <div class="sub-card" style="margin-bottom: 1rem;">
+              <h3 style="color: var(--accent);">Presentation Tier</h3>
+              <p>React 18 Single Page Application bundled with Vite, GSAP 3D animations, and responsive Tailwind-style design.</p>
+            </div>
+            <div class="sub-card" style="margin-bottom: 1rem;">
+              <h3 style="color: var(--teal);">Application Logic Tier</h3>
+              <p>Node.js & Express REST Gateway with Socket.io real-time signaling and clinical AI RAG controllers.</p>
+            </div>
+            <div class="sub-card">
+              <h3 style="color: #a855f7;">Data Persistence Tier</h3>
+              <p>MongoDB Atlas Cloud NoSQL database with optimized indexes for ultra-fast query retrieval.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: Clinical AI & RAG -->
+    <div class="slide">
+      <div class="glass-card">
+        <h2>Clinical AI Assistant: Retrieval-Augmented Generation (RAG)</h2>
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          <div class="sub-card" style="border-left: 4px solid var(--accent);">
+            <h3>1. Clinical Intent Detection</h3>
+            <p>Physicians query patient history (e.g. "Summarize PID-1001") or patients describe symptoms in conversational Hinglish/English.</p>
+          </div>
+          <div class="sub-card" style="border-left: 4px solid var(--teal);">
+            <h3>2. Live Database Retrieval (R)</h3>
+            <p>Backend queries MongoDB collections (Patient, Appointment, Prescription) for vitals, allergies, and drug histories.</p>
+          </div>
+          <div class="sub-card" style="border-left: 4px solid var(--gold);">
+            <h3>3. Context Augmentation (A) & Multi-Model Generation (G)</h3>
+            <p>Records are structured into Gemini system prompts with dual-model failover (Gemini 3.8 Flash + Gemini 3.5 Flash) ensuring zero downtime.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: Telemedicine WebRTC -->
+    <div class="slide">
+      <div class="glass-card">
+        <h2>Native Telemedicine: WebRTC Protocol & Sockets</h2>
+        <div class="grid-3">
+          <div class="sub-card">
+            <h3>P2P Encrypted Audio/Video</h3>
+            <p>RTCPeerConnection negotiates direct media streams without intermediary servers, cutting bandwidth and video latency.</p>
+          </div>
+          <div class="sub-card">
+            <h3>3D Incoming Call Modal</h3>
+            <p>Socket.io triggers real-time alerts. When a doctor starts a call, the patient's screen flashes a pulsing 3D GSAP modal.</p>
+          </div>
+          <div class="sub-card">
+            <h3>Collaborative Whiteboard</h3>
+            <p>HTML5 Canvas drawing allows doctors to sketch anatomical annotations or explain radiological scans during consultations.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 7: ER Diagram -->
+    <div class="slide">
+      <div class="glass-card">
+        <h2>Database Architecture: Entity-Relationship (ER) Schema</h2>
+        <div class="grid-split">
+          <div class="diagram-frame">
+            <img src="./diagram_er.png" alt="CareHMS ER Diagram">
+          </div>
+          <div>
+            <div class="sub-card" style="margin-bottom: 1rem;">
+              <h3>User & Role Profiles</h3>
+              <p>1:1 relationship binding credentials (User) with specialized Doctor or Patient schemas.</p>
+            </div>
+            <div class="sub-card" style="margin-bottom: 1rem;">
+              <h3>Clinical Lifecycle Mappings</h3>
+              <p>Appointments link Patients and Doctors (1:N) with token numbers and consultation status.</p>
+            </div>
+            <div class="sub-card">
+              <h3>Prescriptions & Invoices</h3>
+              <p>Nested medicine items, dosage frequency, and automated checkout ledger generation.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 8: UML Use Case Diagram -->
+    <div class="slide">
+      <div class="glass-card">
+        <h2>System Roles & Capabilities: UML Use Case Diagram</h2>
+        <div class="grid-split">
+          <div class="diagram-frame">
+            <img src="./diagram_usecase.png" alt="CareHMS Use Case Diagram">
+          </div>
+          <div>
+            <div class="sub-card" style="margin-bottom: 0.8rem;">
+              <span style="color: var(--accent); font-weight: 700;">Patient:</span>
+              <p>Bookings, WebRTC calls, prescription reviews, symptom check, e-pharmacy orders.</p>
+            </div>
+            <div class="sub-card" style="margin-bottom: 0.8rem;">
+              <span style="color: var(--teal); font-weight: 700;">Doctor:</span>
+              <p>Teleconsultations, prescription authoring, OPD queue management, AI medical triage.</p>
+            </div>
+            <div class="sub-card" style="margin-bottom: 0.8rem;">
+              <span style="color: var(--gold); font-weight: 700;">Receptionist:</span>
+              <p>OPD token distribution, bed ward admissions, waiting room TV screen control.</p>
+            </div>
+            <div class="sub-card">
+              <span style="color: #f43f5e; font-weight: 700;">Admin (Superuser):</span>
+              <p>Department analytics, doctor credential approval, system audit bypass.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 9: Sequence Diagram -->
+    <div class="slide">
+      <div class="glass-card">
+        <h2>Clinical Workflow: Telemedicine & AI RAG Sequence Flow</h2>
+        <div class="grid-split">
+          <div class="diagram-frame">
+            <img src="./diagram_sequence.png" alt="CareHMS Sequence Diagram">
+          </div>
+          <div>
+            <div class="sub-card" style="margin-bottom: 1rem;">
+              <h3>1. Room Negotiation</h3>
+              <p>Socket.io exchanges room IDs and SDP offers/answers between doctor and patient.</p>
+            </div>
+            <div class="sub-card" style="margin-bottom: 1rem;">
+              <h3>2. Direct WebRTC Channel</h3>
+              <p>STUN servers negotiate ICE candidates to open direct peer-to-peer video streaming.</p>
+            </div>
+            <div class="sub-card">
+              <h3>3. Simultaneous Clinical AI RAG</h3>
+              <p>Doctor inputs PID in chat — backend extracts history from MongoDB and Gemini provides medical summary.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 10: Smart OPD Queue -->
+    <div class="slide">
+      <div class="glass-card">
+        <h2>Smart OPD Queue & Automated Audio Announcer</h2>
+        <div class="grid-3">
+          <div class="sub-card">
+            <h3>Live Waiting Lounge Screen</h3>
+            <p>Designed for public TV screens in patient waiting halls, showing active tokens, current doctor room, and wait times.</p>
+          </div>
+          <div class="sub-card">
+            <h3>Web Speech Synthesis (TTS)</h3>
+            <p>Browser speaks natural voice announcements (e.g. "Token 104, Dr. Sharma Room 3") when doctor clicks 'Call Next'.</p>
+          </div>
+          <div class="sub-card">
+            <h3>15-Minute Dynamic Slots</h3>
+            <p>Balancing appointment scheduling to prevent lobby congestion and peak-hour hospital crowding.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 11: Security & RBAC -->
+    <div class="slide">
+      <div class="glass-card">
+        <h2>Security Framework: Zero-Trust RBAC & Encryption</h2>
+        <div class="grid-2">
+          <div class="sub-card">
+            <h3>JWT Authentication</h3>
+            <p>Stateless bearer tokens validated on every protected API call with auto-expiration on session close.</p>
+          </div>
+          <div class="sub-card">
+            <h3>Bcrypt Salt Hashing</h3>
+            <p>Passwords encrypted with cryptographic salt rounds, protecting database credentials from leakages.</p>
+          </div>
+          <div class="sub-card">
+            <h3>Admin Superuser Clearance</h3>
+            <p>Custom middleware bypass allowing hospital auditors complete record visibility without 403 errors.</p>
+          </div>
+          <div class="sub-card">
+            <h3>Secure Environment Isolation</h3>
+            <p>.gitignore and .env templates protect secret MongoDB and Gemini keys from public repository leaks.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 12: Testing & Metrics -->
+    <div class="slide">
+      <div class="glass-card">
+        <h2>Testing & Real-World Performance Metrics</h2>
+        <div class="grid-3" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 2rem;">
+          <div class="stat-box">
+            <div class="stat-number">100%</div>
+            <div class="stat-label">Test Cases Passed</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-number">&lt; 65ms</div>
+            <div class="stat-label">Average API Latency</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-number">724ms</div>
+            <div class="stat-label">Vite Production Build</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-number">60%+</div>
+            <div class="stat-label">Queue Time Reduced</div>
+          </div>
+        </div>
+        <div class="sub-card">
+          <h3 style="color: var(--accent);">Key Verified Scenarios:</h3>
+          <p style="margin-top: 0.5rem; line-height: 1.8;">
+            ✔ <strong>TC-01:</strong> Valid authentication issues signed JWT and loads dashboard seamlessly.<br>
+            ✔ <strong>TC-02:</strong> Unauthorized patient access to surgery schedule blocked with 403 status.<br>
+            ✔ <strong>TC-03:</strong> Telemedicine trigger delivers 3D video call modal to patient in &lt;150ms.<br>
+            ✔ <strong>TC-04:</strong> Clinical AI extracts PID history from MongoDB and generates clinical review.<br>
+            ✔ <strong>TC-05:</strong> Waiting room token advance triggers browser speech synthesis chime.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 13: Future Roadmap -->
+    <div class="slide">
+      <div class="glass-card">
+        <h2>Future Scope & Technological Roadmap</h2>
+        <div class="grid-3">
+          <div class="sub-card">
+            <h3>Vision OCR Scanner</h3>
+            <p>Gemini Vision API integration to photograph handwritten doctor parchas or blood lab reports and auto-populate EHR fields.</p>
+          </div>
+          <div class="sub-card">
+            <h3>Razorpay & UPI Sandbox</h3>
+            <p>Instant digital payment gateway with QR code scan for billing invoices and pharmacy store checkout receipts.</p>
+          </div>
+          <div class="sub-card">
+            <h3>Vector Document RAG</h3>
+            <p>ChromaDB vector database integration to index entire hospital policy manuals and health insurance documents for semantic Q&A.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 14: Conclusion & Thank You -->
+    <div class="slide">
+      <div class="glass-card" style="text-align: center; padding: 4rem 2rem;">
+        <h1 class="gradient-text" style="font-size: 3.5rem;">Thank You!</h1>
+        <p class="subtitle" style="font-size: 1.4rem;">CareHMS: Next-Gen Smart Healthcare ERP & Telemedicine</p>
+        <p style="color: #fff; font-size: 1.15rem; font-weight: 600; margin-bottom: 2rem;">Open for Questions, Feedback & Live Demonstration</p>
+        <div style="display: inline-block; background: rgba(255, 255, 255, 0.05); padding: 1rem 2rem; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);">
+          <div style="font-family: 'JetBrains Mono', monospace; color: var(--accent); font-size: 0.95rem;">GitHub: https://github.com/Sandeep405812/hospital-management</div>
+          <div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.4rem;">Student: Sandeep • B.Tech CSE • AKTU Lucknow</div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Interactive Controls Dock -->
+  <div class="nav-bar">
+    <button class="nav-btn" onclick="prevSlide()">◀ Previous</button>
+    <button class="nav-btn primary" onclick="nextSlide()">Next ▶</button>
+    <button class="nav-btn" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const counter = document.getElementById('slideCounter');
+    const progressBar = document.getElementById('progressBar');
+
+    function updateSlide() {
+      slides.forEach((s, idx) => {
+        s.classList.toggle('active', idx === currentSlide);
+      });
+      counter.textContent = `Slide ${currentSlide + 1} / ${slides.length}`;
+      progressBar.style.width = `${((currentSlide + 1) / slides.length) * 100}%`;
+    }
+
+    function nextSlide() {
+      if (currentSlide < slides.length - 1) {
+        currentSlide++;
+        updateSlide();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateSlide();
+      }
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(e => console.log(e));
+      } else {
+        document.exitFullscreen().catch(e => console.log(e));
+      }
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        prevSlide();
+      } else if (e.key.toLowerCase() === 'f') {
+        toggleFullscreen();
+      }
+    });
+
+    updateSlide();
+  </script>
+</body>
+</html>

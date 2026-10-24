@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
-import { Layers, User, PlusCircle, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Layers, User, PlusCircle, CheckCircle, XCircle, AlertTriangle, Trash2, RefreshCw, Printer } from 'lucide-react';
 import gsap from 'gsap';
 
 const Beds = () => {
@@ -18,13 +18,26 @@ const Beds = () => {
   const [selectedBed, setSelectedBed] = useState(null);
   const [selectedPatientId, setSelectedPatientId] = useState('');
 
+  // Modal states for Adding a Bed
+  const [showAddBedModal, setShowAddBedModal] = useState(false);
+  const [newBedForm, setNewBedForm] = useState({ bedNumber: '', wardType: 'General' });
+
+  // Permissions helper
+  const isStaff = user && (
+    user.role === 'superadmin' ||
+    user.role === 'admin' ||
+    user.role === 'admin_beds' ||
+    user.role === 'doctor' ||
+    user.role === 'receptionist'
+  );
+
   // Fetch beds and patients lists
   const fetchData = async () => {
     try {
       const bedData = await api.get('/beds');
       setBeds(bedData);
       
-      if (user.role === 'admin' || user.role === 'doctor' || user.role === 'receptionist') {
+      if (isStaff) {
         const patientData = await api.get('/patients');
         setPatients(patientData);
       }
@@ -67,10 +80,53 @@ const Beds = () => {
       });
       setShowAllocateModal(false);
       setSelectedPatientId('');
-      fetchData();
+      await fetchData();
       alert('Patient allocated to bed successfully!');
     } catch (err) {
       alert(err.message || 'Failed to allocate bed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateBed = async (e) => {
+    e.preventDefault();
+    if (!newBedForm.bedNumber) return;
+
+    try {
+      setLoading(true);
+      await api.post('/beds', newBedForm);
+      setShowAddBedModal(false);
+      setNewBedForm({ bedNumber: '', wardType: 'General' });
+      await fetchData();
+      alert('New bed registered successfully!');
+    } catch (err) {
+      alert(err.message || 'Failed to create bed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (bedId, newStatus) => {
+    try {
+      setLoading(true);
+      await api.put(`/beds/${bedId}/status`, { status: newStatus });
+      await fetchData();
+    } catch (err) {
+      alert(err.message || 'Failed to update bed status');
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteBed = async (bedId) => {
+    if (!window.confirm('Are you sure you want to delete this vacant bed?')) return;
+    try {
+      setLoading(true);
+      await api.delete(`/beds/${bedId}`);
+      await fetchData();
+      alert('Bed deleted successfully');
+    } catch (err) {
+      alert(err.message || 'Failed to delete bed');
       setLoading(false);
     }
   };
@@ -101,11 +157,14 @@ const Beds = () => {
 
     try {
       setLoading(true);
-      
-      // Generate and download the PDF discharge summary
+
+      // 1. ALWAYS trigger database discharge first so bed is reliably marked available
+      await api.put(`/beds/${selectedBed._id}/discharge`, dischargeForm);
+
+      // 2. Safely attempt PDF discharge summary download
       const patient = selectedBed.patient;
       const bedDetails = selectedBed;
-      
+
       const element = document.createElement('div');
       element.innerHTML = `
         <div style="padding: 40px; font-family: Arial, sans-serif; color: #333; background-color: #fff; width: 700px; margin: 0 auto;">
@@ -115,7 +174,7 @@ const Beds = () => {
               <p style="margin: 3px 0 0 0; font-size: 12px; color: #666; font-style: italic;">Patient-Centric Digital Healthcare Systems</p>
             </div>
             <div style="text-align: right;">
-              <h3 style="margin: 0; color: #444; font-size: 16px; font-weight: 700;">DISCHARGE SUMMARY</h3>
+              <h3 style="margin: 0; color: #444; font-size: 16px; font-weight: 700;">OFFICIAL DISCHARGE SUMMARY</h3>
               <p style="margin: 2px 0 0 0; font-size: 11px; color: #888;">Ref: DS-${Math.floor(100000 + Math.random() * 900000)}</p>
             </div>
           </div>
@@ -167,7 +226,7 @@ const Beds = () => {
           <div style="margin-top: 50px; display: flex; justify-content: space-between; align-items: flex-end;">
             <div style="font-size: 10px; color: #94a3b8;">
               <p style="margin: 0;">CareHMS Medical Systems</p>
-              <p style="margin: 2px 0 0 0;">System Verified PDF Record</p>
+              <p style="margin: 2px 0 0 0;">System Verified Digital Record</p>
             </div>
             <div style="text-align: center; width: 180px;">
               <div style="border-bottom: 1px solid #cbd5e1; margin-bottom: 5px; height: 35px;"></div>
@@ -178,24 +237,25 @@ const Beds = () => {
         </div>
       `;
 
-      const opt = {
-        margin:       10,
-        filename:     `Discharge_Summary_${patient?.user?.name?.replace(/\s+/g, '_') || 'Patient'}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2 },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
+      if (typeof window !== 'undefined' && window.html2pdf) {
+        try {
+          const opt = {
+            margin:       10,
+            filename:     `Discharge_Summary_${patient?.user?.name?.replace(/\s+/g, '_') || 'Patient'}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2 },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+          };
+          await window.html2pdf().from(element).set(opt).save();
+        } catch (pdfErr) {
+          console.warn('PDF export library warning:', pdfErr);
+        }
+      }
 
-      // Generate the PDF file
-      await html2pdf().from(element).set(opt).save();
-
-      // Trigger the backend API call to discharge the patient
-      await api.put(`/beds/${selectedBed._id}/discharge`, dischargeForm);
-      
       setShowDischargeModal(false);
       setSelectedBed(null);
-      fetchData();
-      alert('Patient discharged successfully and Discharge Summary PDF downloaded!');
+      await fetchData();
+      alert('Patient discharged successfully and bed is now Vacant!');
     } catch (err) {
       alert(err.message || 'Failed to discharge patient');
     } finally {
@@ -347,11 +407,21 @@ const Beds = () => {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 className="page-title">IPD Bed Ward Map</h1>
           <p className="page-subtitle">Allocate beds, track IPD occupancy, and manage ward availability</p>
         </div>
+        {isStaff && (
+          <button
+            className="btn btn-teal"
+            onClick={() => setShowAddBedModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          >
+            <PlusCircle size={18} />
+            <span>Register New Bed</span>
+          </button>
+        )}
       </div>
 
       {/* Stats Board */}
@@ -456,23 +526,46 @@ const Beds = () => {
               </div>
 
               {isStaff && (
-                <div style={{ marginTop: '1rem' }}>
+                <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                   {isOccupied ? (
                     <button
                       onClick={() => handleOpenDischarge(bed)}
                       className="btn btn-danger btn-sm btn-full"
                       style={{ padding: '0.4rem' }}
                     >
-                      Discharge
+                      Discharge Patient
                     </button>
                   ) : (
-                    <button
-                      onClick={() => handleOpenAllocate(bed)}
-                      className="btn btn-teal btn-sm btn-full"
-                      style={{ padding: '0.4rem' }}
-                    >
-                      Admit Patient
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleOpenAllocate(bed)}
+                        className="btn btn-teal btn-sm btn-full"
+                        style={{ padding: '0.4rem' }}
+                      >
+                        Admit Patient
+                      </button>
+                      <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                        <select
+                          className="form-select"
+                          style={{ fontSize: '0.72rem', padding: '0.2rem 0.4rem', height: '28px', flex: 1 }}
+                          value={bed.status}
+                          onChange={(e) => handleStatusChange(bed._id, e.target.value)}
+                        >
+                          <option value="Available">Available</option>
+                          <option value="Maintenance">Maintenance</option>
+                          <option value="Cleaning">Cleaning</option>
+                        </select>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '0.2rem 0.5rem', color: '#ef4444' }}
+                          title="Delete Bed"
+                          onClick={() => handleDeleteBed(bed._id)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               )}
@@ -510,20 +603,91 @@ const Beds = () => {
                   required
                 >
                   <option value="">-- Choose Patient --</option>
-                  {patients.map((pat) => (
-                    <option key={pat._id} value={pat._id}>
-                      {pat.user?.name} (Blood Type: {pat.bloodType || 'N/A'})
-                    </option>
-                  ))}
+                  {patients.map((pat) => {
+                    const isAlreadyAdmitted = beds.some(
+                      (b) => b.status === 'Occupied' && (b.patient?._id === pat._id || b.patient === pat._id)
+                    );
+                    return (
+                      <option key={pat._id} value={pat._id} disabled={isAlreadyAdmitted}>
+                        {pat.user?.name} (Blood: {pat.bloodType || 'N/A'}) {isAlreadyAdmitted ? '— ⚠️ Already Admitted' : '— ✅ Ready for Admission'}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
               <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
-                <button type="submit" className="btn btn-teal btn-full">Admit Patient</button>
+                <button type="submit" className="btn btn-teal btn-full" disabled={loading}>
+                  {loading ? 'Admitting...' : 'Admit Patient'}
+                </button>
                 <button
                   type="button"
                   className="btn btn-secondary btn-full"
                   onClick={() => setShowAllocateModal(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add New Bed Modal */}
+      {showAddBedModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(9, 13, 22, 0.85)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)',
+            borderRadius: 'var(--border-radius-lg)', padding: '2.5rem',
+            maxWidth: '460px', width: '90%'
+          }}>
+            <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.5rem', color: '#fff' }}>
+              Register New Hospital Bed
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+              Add a new vacant bed to hospital in-patient ward registry.
+            </p>
+
+            <form onSubmit={handleCreateBed}>
+              <div className="form-group">
+                <label className="form-label">Bed Number / Code *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. ICU-105, GEN-302, PVT-201"
+                  value={newBedForm.bedNumber}
+                  onChange={(e) => setNewBedForm({ ...newBedForm, bedNumber: e.target.value.toUpperCase() })}
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Ward Category *</label>
+                <select
+                  className="form-select"
+                  value={newBedForm.wardType}
+                  onChange={(e) => setNewBedForm({ ...newBedForm, wardType: e.target.value })}
+                  required
+                >
+                  <option value="General">General Ward</option>
+                  <option value="ICU">ICU (Intensive Care)</option>
+                  <option value="Semi-Private">Semi-Private Ward</option>
+                  <option value="Private">Private Suite</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                <button type="submit" className="btn btn-teal btn-full" disabled={loading}>
+                  {loading ? 'Registering...' : 'Add Bed'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-full"
+                  onClick={() => setShowAddBedModal(false)}
                 >
                   Cancel
                 </button>

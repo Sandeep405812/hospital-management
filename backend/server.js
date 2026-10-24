@@ -23,6 +23,7 @@ import surgeryRoutes from './routes/surgeryRoutes.js';
 import dischargeRoutes from './routes/dischargeRoutes.js';
 import aiRoutes from './routes/aiRoutes.js';
 import hospitalRoutes from './routes/hospitalRoutes.js';
+import staffRoutes from './routes/staffRoutes.js';
 
 // Model imports for seeding
 import User from './models/User.js';
@@ -170,10 +171,88 @@ app.use('/api/beds/discharge-summaries', dischargeRoutes);
 app.use('/api/surgeries', surgeryRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/hospitals', hospitalRoutes);
+app.use('/api/staff', staffRoutes);
 
 app.get('/', (req, res) => {
   res.send('Hospital Management System API (with Telemedicine & Uploads) is running...');
 });
+
+// Seed default Super Admin & Domain Admins
+const seedSuperAdminAndDomainAdmins = async () => {
+  try {
+    const superAdminExists = await User.findOne({ email: 'superadmin@hospital.com' });
+    if (!superAdminExists) {
+      await User.create({
+        name: 'Dr. A. S. Verma (Super Admin & Director)',
+        email: 'superadmin@hospital.com',
+        password: 'superadmin123',
+        role: 'superadmin',
+        adminType: 'super_admin',
+        department: 'Hospital Board of Directors',
+        phoneNumber: '+91 99182 72164',
+        gender: 'Male',
+        status: 'Active',
+      });
+      console.log('Seeded Super Admin: superadmin@hospital.com / superadmin123');
+    }
+
+    const domainAdmins = [
+      {
+        name: 'Vikram Mehta (Doctor & OPD Manager)',
+        email: 'doctoradmin@hospital.com',
+        password: 'doctoradmin123',
+        role: 'admin_doctors',
+        adminType: 'doctor_manager',
+        department: 'Doctor & Department Operations',
+        phoneNumber: '+91 98765 43211',
+        gender: 'Male',
+      },
+      {
+        name: 'Priya Sharma (In-Patient & Bed Manager)',
+        email: 'bedadmin@hospital.com',
+        password: 'bedadmin123',
+        role: 'admin_beds',
+        adminType: 'bed_manager',
+        department: 'IPD Ward & Bed Logistics',
+        phoneNumber: '+91 98765 43212',
+        gender: 'Female',
+      },
+      {
+        name: 'Anjali Gupta (Helpdesk & Reception Head)',
+        email: 'helpdeskadmin@hospital.com',
+        password: 'helpdeskadmin123',
+        role: 'admin_helpdesk',
+        adminType: 'helpdesk_manager',
+        department: 'Front Desk & Help Center',
+        phoneNumber: '+91 98765 43213',
+        gender: 'Female',
+      },
+      {
+        name: 'Rajesh Khanna (Staff & HR Operations)',
+        email: 'staffadmin@hospital.com',
+        password: 'staffadmin123',
+        role: 'admin_staff',
+        adminType: 'staff_manager',
+        department: 'Human Resources & Nursing Staff',
+        phoneNumber: '+91 98765 43214',
+        gender: 'Male',
+      },
+    ];
+
+    for (const admin of domainAdmins) {
+      const exists = await User.findOne({ email: admin.email });
+      if (!exists) {
+        await User.create({
+          ...admin,
+          status: 'Active',
+        });
+        console.log(`Seeded specialized admin: ${admin.email}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error seeding Super Admin & Domain Admins:', error.message);
+  }
+};
 
 // Seed default admin if none exists
 const seedAdmin = async () => {
@@ -339,6 +418,7 @@ const ensurePatientIds = async () => {
 };
 
 const runSeeders = async () => {
+  await seedSuperAdminAndDomainAdmins();
   await seedAdmin();
   await seedReceptionist();
   await seedDoctor();

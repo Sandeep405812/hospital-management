@@ -104,3 +104,43 @@ export const dischargePatient = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// @desc    Update bed status (Maintenance, Cleaning, Available)
+// @route   PUT /api/beds/:id/status
+// @access  Private/Admin/Receptionist/Bed Manager
+export const updateBedStatus = async (req, res) => {
+  const { status } = req.body;
+  try {
+    const bed = await Bed.findById(req.params.id);
+    if (!bed) {
+      return res.status(404).json({ message: 'Bed not found' });
+    }
+    if (bed.status === 'Occupied' && status !== 'Occupied') {
+      return res.status(400).json({ message: 'Cannot change status of an occupied bed. Please discharge patient first.' });
+    }
+    bed.status = status;
+    await bed.save();
+    res.json({ message: `Bed status updated to ${status}`, bed });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Delete a bed
+// @route   DELETE /api/beds/:id
+// @access  Private/Admin/Bed Manager
+export const deleteBed = async (req, res) => {
+  try {
+    const bed = await Bed.findById(req.params.id);
+    if (!bed) {
+      return res.status(404).json({ message: 'Bed not found' });
+    }
+    if (bed.status === 'Occupied') {
+      return res.status(400).json({ message: 'Cannot delete an occupied bed' });
+    }
+    await Bed.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Bed deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};

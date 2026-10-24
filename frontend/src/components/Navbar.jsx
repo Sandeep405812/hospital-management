@@ -83,7 +83,25 @@ const Navbar = ({ title, onMenuClick }) => {
     return () => socket.disconnect();
   }, []);
 
+  const playChime = () => {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.35);
+    } catch (e) {}
+  };
+
   const addNotification = (text) => {
+    playChime();
     setShakeBell(true);
     setTimeout(() => setShakeBell(false), 600);
     setNotifications((prev) => {
@@ -111,6 +129,7 @@ const Navbar = ({ title, onMenuClick }) => {
     if (path === '/prescriptions') return 'Home / Prescriptions';
     if (path === '/billing') return 'Home / Billing & Invoices';
     if (path === '/reports') return 'Home / Medical Reports';
+    if (path === '/staff') return 'Home / Staff & Admins';
     if (path === '/departments') return 'Home / Departments';
     if (path === '/profile') return 'Home / My Profile';
     return 'Home';

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
 import Table from '../components/Table';
 import Modal from '../components/Modal';
-import { Calendar, Plus, Check, X, FileText, Video } from 'lucide-react';
+import { Calendar, Plus, Check, X, FileText, Video, Mic } from 'lucide-react';
 import { sendMockWhatsapp } from '../utils/whatsapp';
 
 const Appointments = () => {
@@ -82,6 +82,50 @@ const Appointments = () => {
   const [activeAppointment, setActiveAppointment] = useState(null);
   const [medicines, setMedicines] = useState([{ name: '', dosage: '', frequency: '', duration: '' }]);
   const [prescriptionNotes, setPrescriptionNotes] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+
+  const toggleSpeechRecognition = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Voice speech recognition is not supported in this browser. Please use Chrome or Edge.');
+      return;
+    }
+
+    if (isRecording) {
+      setIsRecording(false);
+      return;
+    }
+
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-IN';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => {
+        setIsRecording(true);
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setPrescriptionNotes((prev) => (prev ? `${prev} ${transcript}` : transcript));
+        setIsRecording(false);
+      };
+
+      recognition.onerror = () => {
+        setIsRecording(false);
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.error('Speech recognition error:', err);
+      setIsRecording(false);
+    }
+  };
 
   const fetchAppointments = async (customStart, customEnd) => {
     try {
@@ -826,12 +870,32 @@ const Appointments = () => {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Clinical Notes / Advice</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+              <label className="form-label" style={{ margin: 0 }}>Clinical Notes / Diagnosis *</label>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  fontSize: '0.75rem',
+                  padding: '0.2rem 0.55rem',
+                  color: isRecording ? '#ef4444' : 'var(--accent-teal)',
+                  borderColor: isRecording ? '#ef4444' : 'var(--glass-border)'
+                }}
+                onClick={toggleSpeechRecognition}
+              >
+                <Mic size={14} style={{ animation: isRecording ? 'pulse 1s infinite' : 'none' }} />
+                <span>{isRecording ? 'Listening (Speak Now)...' : 'Speech-to-Text Dictation'}</span>
+              </button>
+            </div>
             <textarea
               className="form-textarea"
-              placeholder="Add advice, food restrictions, follow-up timelines..."
+              placeholder="Describe diagnosis, clinical advice, follow-up timelines (or click Speech-to-Text to dictate)..."
               value={prescriptionNotes}
               onChange={(e) => setPrescriptionNotes(e.target.value)}
+              required
             />
           </div>
 

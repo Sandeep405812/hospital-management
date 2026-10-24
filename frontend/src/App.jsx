@@ -32,6 +32,7 @@ import Beds from './pages/Beds';
 import SurgerySchedule from './pages/SurgerySchedule';
 import WaitingRoom from './pages/WaitingRoom';
 import Inventory from './pages/Inventory';
+import StaffManagement from './pages/StaffManagement';
 import { LanguageProvider } from './context/LanguageContext';
 
 // Protected Route Guard
@@ -46,8 +47,17 @@ const ProtectedRoute = ({ allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Admin is a superuser and can access all patient/staff pages
-  if (allowedRoles && user.role !== 'admin' && !allowedRoles.includes(user.role)) {
+  // Superadmin and Admin have universal clearance across all staff/patient portals
+  const isSuperUser = user.role === 'superadmin' || user.role === 'admin';
+  const isDomainAdminAllowed = allowedRoles && (
+    (user.role.startsWith('admin_') && allowedRoles.includes('admin')) ||
+    (user.role === 'admin_doctors' && (allowedRoles.includes('doctor') || allowedRoles.includes('doctors'))) ||
+    (user.role === 'admin_beds' && (allowedRoles.includes('receptionist') || allowedRoles.includes('beds'))) ||
+    (user.role === 'admin_helpdesk' && allowedRoles.includes('receptionist')) ||
+    (user.role === 'admin_staff' && allowedRoles.includes('staff'))
+  );
+
+  if (allowedRoles && !isSuperUser && !isDomainAdminAllowed && !allowedRoles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -348,6 +358,11 @@ function App() {
               <Route path="/beds" element={<Beds />} />
               <Route path="/inventory" element={<Inventory />} />
 
+              {/* Super Admin & Staff Managers */}
+              <Route element={<ProtectedRoute allowedRoles={['superadmin', 'admin', 'admin_staff']} />}>
+                <Route path="/staff" element={<StaffManagement />} />
+              </Route>
+
               {/* Admin, Doctor & Receptionist only */}
               <Route element={<ProtectedRoute allowedRoles={['admin', 'doctor', 'receptionist']} />}>
                 <Route path="/surgery-schedule" element={<SurgerySchedule />} />
@@ -365,6 +380,11 @@ function App() {
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/metrics" element={<Metrics />} />
                 <Route path="/symptom-checker" element={<SymptomChecker />} />
+              </Route>
+
+              {/* Super Admin & Staff Managers */}
+              <Route element={<ProtectedRoute allowedRoles={['superadmin', 'admin', 'admin_staff']} />}>
+                <Route path="/staff" element={<StaffManagement />} />
               </Route>
 
               {/* Admin, Doctor & Receptionist only */}

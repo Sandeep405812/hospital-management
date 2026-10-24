@@ -24,8 +24,36 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['admin', 'doctor', 'patient', 'receptionist'],
+      enum: [
+        'superadmin',
+        'admin',
+        'admin_doctors',
+        'admin_staff',
+        'admin_helpdesk',
+        'admin_beds',
+        'doctor',
+        'patient',
+        'receptionist',
+      ],
       default: 'patient',
+    },
+    department: {
+      type: String,
+      default: 'General',
+    },
+    adminType: {
+      type: String,
+      enum: ['super_admin', 'doctor_manager', 'staff_manager', 'helpdesk_manager', 'bed_manager', 'none'],
+      default: 'none',
+    },
+    status: {
+      type: String,
+      enum: ['Active', 'Inactive', 'Suspended'],
+      default: 'Active',
+    },
+    assignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
     },
     phoneNumber: {
       type: String,

@@ -21,7 +21,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Package,
-  ShoppingBag
+  ShoppingBag,
+  ShieldCheck,
+  UserCheck
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose }) => {
@@ -161,6 +163,13 @@ const Sidebar = ({ isOpen, onClose }) => {
       group: 'finance'
     },
     {
+      to: '/staff',
+      label: 'Staff & Admins',
+      icon: <ShieldCheck size={20} />,
+      roles: ['superadmin', 'admin', 'admin_staff'],
+      group: 'system'
+    },
+    {
       to: '/profile',
       label: t('myProfile'),
       icon: <User size={20} />,
@@ -169,7 +178,18 @@ const Sidebar = ({ isOpen, onClose }) => {
     },
   ];
 
-  const filteredLinks = links.filter((link) => link.roles.includes(user.role));
+  const filteredLinks = links.filter((link) => {
+    if (user.role === 'superadmin' || user.role === 'admin') return true;
+    if (link.roles.includes(user.role)) return true;
+    if (user.role.startsWith('admin_')) {
+      if (link.to === '/dashboard' || link.to === '/profile') return true;
+      if (user.role === 'admin_doctors' && (link.to === '/doctors' || link.to === '/departments' || link.to === '/appointments')) return true;
+      if (user.role === 'admin_beds' && (link.to === '/beds' || link.to === '/surgery-schedule' || link.to === '/patients')) return true;
+      if (user.role === 'admin_helpdesk' && (link.to === '/appointments' || link.to === '/patients' || link.to === '/billing')) return true;
+      if (user.role === 'admin_staff' && (link.to === '/staff' || link.to === '/doctors' || link.to === '/departments')) return true;
+    }
+    return false;
+  });
 
   const sidebarStyle = {
     position: 'fixed',
