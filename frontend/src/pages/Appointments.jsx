@@ -18,6 +18,8 @@ const Appointments = () => {
   // Search & Filters State
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [doctorFilter, setDoctorFilter] = useState('All');
+  const [departmentFilter, setDepartmentFilter] = useState('All');
   const [dateFilter, setDateFilter] = useState('');
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
@@ -164,14 +166,13 @@ const Appointments = () => {
     const initData = async () => {
       try {
         setLoading(true);
+        const [docs, depts] = await Promise.all([
+          api.get('/doctors').catch(() => []),
+          api.get('/departments').catch(() => []),
+        ]);
+        setDoctors(docs);
+        setDepartments(depts);
         await fetchAppointments();
-
-        if (user.role === 'patient') {
-          const docs = await api.get('/doctors');
-          const depts = await api.get('/departments');
-          setDoctors(docs);
-          setDepartments(depts);
-        }
       } catch (error) {
         console.error('Failed to initialize appointments page data:', error);
       } finally {
@@ -270,16 +271,35 @@ const Appointments = () => {
     const patientName = app.patient?.user?.name || '';
     const patientId = app.patient?.patientId || '';
     const symptoms = app.symptoms || '';
-    const matchesSearch = 
-      doctorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patientId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      symptoms.toLowerCase().includes(searchQuery.toLowerCase());
+    const q = searchQuery.toLowerCase().trim();
 
-    const matchesStatus = statusFilter === 'All' || app.status === statusFilter;
-    const matchesDate = !dateFilter || new Date(app.date).toDateString() === new Date(dateFilter).toDateString();
+    const matchesSearch = !q ||
+      doctorName.toLowerCase().includes(q) ||
+      patientName.toLowerCase().includes(q) ||
+      patientId.toLowerCase().includes(q) ||
+      symptoms.toLowerCase().includes(q);
 
-    return matchesSearch && matchesStatus && matchesDate;
+    const matchesStatus = statusFilter === 'All' || app.status?.toLowerCase() === statusFilter.toLowerCase();
+
+    const matchesDoctor = doctorFilter === 'All' || app.doctor?._id === doctorFilter;
+
+    const appDeptId = app.department?._id || app.doctor?.department?._id || app.department;
+    const matchesDept = departmentFilter === 'All' || appDeptId === departmentFilter;
+
+    let matchesDate = true;
+    if (startDateFilter || endDateFilter) {
+      const appDateVal = new Date(app.date).setHours(0, 0, 0, 0);
+      if (startDateFilter) {
+        const sVal = new Date(startDateFilter).setHours(0, 0, 0, 0);
+        if (appDateVal < sVal) matchesDate = false;
+      }
+      if (endDateFilter) {
+        const eVal = new Date(endDateFilter).setHours(23, 59, 59, 999);
+        if (appDateVal > eVal) matchesDate = false;
+      }
+    }
+
+    return matchesSearch && matchesStatus && matchesDoctor && matchesDept && matchesDate;
   }).sort((a, b) => {
     // Primary sort: Date
     const dateA = new Date(a.date).getTime();
@@ -412,7 +432,7 @@ const Appointments = () => {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <div style={{ width: '170px' }}>
+          <div style={{ width: '160px' }}>
             <select
               className="form-select"
               style={{ margin: 0 }}
@@ -428,6 +448,44 @@ const Appointments = () => {
             </select>
           </div>
 
+          {/* Doctor filter dropdown for non-doctors */}
+          {user.role !== 'doctor' && doctors.length > 0 && (
+            <div style={{ width: '175px' }}>
+              <select
+                className="form-select"
+                style={{ margin: 0 }}
+                value={doctorFilter}
+                onChange={(e) => setDoctorFilter(e.target.value)}
+              >
+                <option value="All">All Doctors</option>
+                {doctors.map((d) => (
+                  <option key={d._id} value={d._id}>
+                    Dr. {d.user?.name || 'Doctor'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Department filter dropdown */}
+          {departments.length > 0 && (
+            <div style={{ width: '165px' }}>
+              <select
+                className="form-select"
+                style={{ margin: 0 }}
+                value={departmentFilter}
+                onChange={(e) => setDepartmentFilter(e.target.value)}
+              >
+                <option value="All">All Wings</option>
+                {departments.map((dept) => (
+                  <option key={dept._id} value={dept._id}>
+                    {dept.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Quick Date Range for Doctor/Admin */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -435,7 +493,7 @@ const Appointments = () => {
               <input
                 type="date"
                 className="form-input"
-                style={{ margin: 0, width: '145px', padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}
+                style={{ margin: 0, width: '135px', padding: '0.4rem 0.5rem', fontSize: '0.8rem' }}
                 value={startDateFilter}
                 onChange={(e) => {
                   setStartDateFilter(e.target.value);
@@ -448,7 +506,7 @@ const Appointments = () => {
               <input
                 type="date"
                 className="form-input"
-                style={{ margin: 0, width: '145px', padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}
+                style={{ margin: 0, width: '135px', padding: '0.4rem 0.5rem', fontSize: '0.8rem' }}
                 value={endDateFilter}
                 onChange={(e) => {
                   setEndDateFilter(e.target.value);
@@ -458,19 +516,21 @@ const Appointments = () => {
             </div>
           </div>
 
-          {(searchQuery || statusFilter !== 'All' || dateFilter || startDateFilter || endDateFilter) && (
+          {(searchQuery || statusFilter !== 'All' || doctorFilter !== 'All' || departmentFilter !== 'All' || startDateFilter || endDateFilter) && (
             <button
               className="btn btn-secondary btn-sm"
               onClick={() => {
                 setSearchQuery('');
                 setStatusFilter('All');
+                setDoctorFilter('All');
+                setDepartmentFilter('All');
                 setDateFilter('');
                 setStartDateFilter('');
                 setEndDateFilter('');
                 fetchAppointments('', '');
               }}
             >
-              Reset
+              Reset Filters
             </button>
           )}
         </div>

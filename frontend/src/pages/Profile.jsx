@@ -112,6 +112,7 @@ const Profile = () => {
     name: '',
     phoneNumber: '',
     gender: 'Male',
+    department: '',
     // Patient details
     dateOfBirth: '',
     bloodType: 'A+',
@@ -134,6 +135,7 @@ const Profile = () => {
         name: user.name || '',
         phoneNumber: user.phoneNumber || '',
         gender: user.gender || 'Male',
+        department: user.department || 'General',
         dateOfBirth: detailed.dateOfBirth ? new Date(detailed.dateOfBirth).toISOString().split('T')[0] : '',
         bloodType: detailed.bloodType || 'A+',
         allergies: detailed.allergies?.join(', ') || '',
@@ -151,38 +153,25 @@ const Profile = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      if (user.role === 'patient') {
-        const payload = {
-          name: formData.name,
-          phoneNumber: formData.phoneNumber,
-          gender: formData.gender,
-          dateOfBirth: formData.dateOfBirth,
-          bloodType: formData.bloodType,
-          allergies: formData.allergies.split(',').map((x) => x.trim()).filter(Boolean),
-          medicalHistory: formData.medicalHistory.split(',').map((x) => x.trim()).filter(Boolean),
-          emergencyContact: formData.emergencyContact,
-        };
-        await api.put(`/patients/${user.relativeId}`, payload);
-      } else if (user.role === 'doctor') {
-        const payload = {
-          name: formData.name,
-          phoneNumber: formData.phoneNumber,
-          gender: formData.gender,
-          specialization: formData.specialization,
-          consultationFee: formData.consultationFee,
-          experience: formData.experience,
-          qualification: formData.qualification,
-        };
-        await api.put(`/doctors/${user.relativeId}`, payload);
-      } else {
-        // Admin profile update
-        // We can create a simple user put route if needed, or update patient/doctor details.
-        // For admin, let's keep it simple or use standard user profile edit.
-        alert('Admin profile edits not configured.');
-        setLoading(false);
-        return;
-      }
+      const payload = {
+        name: formData.name,
+        phoneNumber: formData.phoneNumber,
+        gender: formData.gender,
+        department: formData.department,
+        // Patient details
+        dateOfBirth: formData.dateOfBirth,
+        bloodType: formData.bloodType,
+        allergies: formData.allergies ? formData.allergies.split(',').map((x) => x.trim()).filter(Boolean) : [],
+        medicalHistory: formData.medicalHistory ? formData.medicalHistory.split(',').map((x) => x.trim()).filter(Boolean) : [],
+        emergencyContact: formData.emergencyContact,
+        // Doctor details
+        specialization: formData.specialization,
+        consultationFee: formData.consultationFee,
+        experience: formData.experience,
+        qualification: formData.qualification,
+      };
 
+      await api.put('/auth/profile', payload);
       await loadUser();
       setIsEditing(false);
       alert('Profile updated successfully!');
@@ -232,16 +221,20 @@ const Profile = () => {
         {activeTab === 'profile' ? (
           <form onSubmit={handleSubmit}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.75rem' }}>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-blue)' }}>Account Specifications</h3>
-            {user.role !== 'admin' && (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setIsEditing(!isEditing)}
-              >
-                {isEditing ? 'Cancel' : 'Edit Profile'}
-              </button>
-            )}
+            <div>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--accent-blue)', margin: 0 }}>Account Specifications</h3>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                Role: <strong style={{ color: 'var(--accent-teal)', textTransform: 'capitalize' }}>{user.role?.replace('_', ' ')}</strong>
+                {user.department && ` • ${user.department}`}
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setIsEditing(!isEditing)}
+            >
+              {isEditing ? 'Cancel' : 'Edit Profile'}
+            </button>
           </div>
 
           {/* Avatar Upload Layout */}
@@ -331,6 +324,20 @@ const Profile = () => {
               </select>
             </div>
           </div>
+
+          {(user.role === 'superadmin' || user.role === 'admin' || user.role.startsWith('admin_') || user.role === 'receptionist') && (
+            <div className="form-group">
+              <label className="form-label">Hospital Department / Division</label>
+              <input
+                type="text"
+                className="form-input"
+                value={formData.department}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                disabled={!isEditing}
+                placeholder="e.g. Administration, OPD Services, IPD Wards"
+              />
+            </div>
+          )}
 
           {/* Patient Specific Fields */}
           {user.role === 'patient' && (

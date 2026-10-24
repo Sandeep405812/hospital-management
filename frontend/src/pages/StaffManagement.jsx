@@ -21,6 +21,17 @@ import {
   Building2,
 } from 'lucide-react';
 
+const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DEFAULT_STAFF_SCHEDULE = {
+  Monday: '09:00 - 17:00',
+  Tuesday: '09:00 - 17:00',
+  Wednesday: '09:00 - 17:00',
+  Thursday: '09:00 - 17:00',
+  Friday: '09:00 - 17:00',
+  Saturday: '09:00 - 13:00',
+  Sunday: 'Off',
+};
+
 const StaffManagement = () => {
   const { user } = useAuth();
   const [staffList, setStaffList] = useState([]);
@@ -39,6 +50,11 @@ const StaffManagement = () => {
     phoneNumber: '',
     gender: 'Male',
   });
+
+  // Day-Wise Duty Schedule State
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [selectedStaffForSchedule, setSelectedStaffForSchedule] = useState(null);
+  const [staffDaySchedule, setStaffDaySchedule] = useState(DEFAULT_STAFF_SCHEDULE);
 
   const fetchStaff = async () => {
     try {
@@ -98,6 +114,68 @@ const StaffManagement = () => {
       alert('Staff member removed successfully');
     } catch (err) {
       alert(err.message || 'Failed to delete staff member');
+    }
+  };
+
+  const handleOpenStaffSchedule = (staff) => {
+    setSelectedStaffForSchedule(staff);
+    let sched = { ...DEFAULT_STAFF_SCHEDULE };
+    if (staff.schedule) {
+      if (typeof staff.schedule === 'object') {
+        DAYS_OF_WEEK.forEach((d) => {
+          if (staff.schedule[d]) sched[d] = staff.schedule[d];
+        });
+      }
+    }
+    setStaffDaySchedule(sched);
+    setShowScheduleModal(true);
+  };
+
+  const handleSaveStaffSchedule = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put(`/staff/${selectedStaffForSchedule._id}`, {
+        schedule: staffDaySchedule,
+      });
+      setShowScheduleModal(false);
+      await fetchStaff();
+      alert('Staff day-wise duty shift schedule updated successfully!');
+    } catch (err) {
+      alert(err.message || 'Failed to update duty schedule');
+    }
+  };
+
+  const applyStaffTemplate = (shiftType) => {
+    if (shiftType === 'general') {
+      setStaffDaySchedule({
+        Monday: '09:00 - 17:00',
+        Tuesday: '09:00 - 17:00',
+        Wednesday: '09:00 - 17:00',
+        Thursday: '09:00 - 17:00',
+        Friday: '09:00 - 17:00',
+        Saturday: '09:00 - 13:00',
+        Sunday: 'Off',
+      });
+    } else if (shiftType === 'morning') {
+      setStaffDaySchedule({
+        Monday: '08:00 - 16:00',
+        Tuesday: '08:00 - 16:00',
+        Wednesday: '08:00 - 16:00',
+        Thursday: '08:00 - 16:00',
+        Friday: '08:00 - 16:00',
+        Saturday: '08:00 - 14:00',
+        Sunday: 'Off',
+      });
+    } else if (shiftType === 'night') {
+      setStaffDaySchedule({
+        Monday: '20:00 - 08:00',
+        Tuesday: '20:00 - 08:00',
+        Wednesday: '20:00 - 08:00',
+        Thursday: '20:00 - 08:00',
+        Friday: '20:00 - 08:00',
+        Saturday: 'Off',
+        Sunday: 'Off',
+      });
     }
   };
 
@@ -310,9 +388,14 @@ const StaffManagement = () => {
                     </td>
 
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
-                        <Building2 size={14} style={{ color: 'var(--accent-teal)' }} />
-                        <span>{staff.department || 'General'}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem' }}>
+                          <Building2 size={14} style={{ color: 'var(--accent-teal)' }} />
+                          <span style={{ fontWeight: 600 }}>{staff.department || 'General'}</span>
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                          {staff.schedule?.Monday ? `Mon: ${staff.schedule.Monday}` : 'Shift: 09:00 - 17:00'}
+                        </div>
                       </div>
                     </td>
 
@@ -350,10 +433,18 @@ const StaffManagement = () => {
 
                     <td>
                       {!isSuper && (
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                           <button
                             className="btn btn-secondary btn-sm"
-                            style={{ padding: '0.3rem 0.6rem', color: '#ef4444' }}
+                            style={{ padding: '0.3rem 0.55rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                            title="Assign Day-Wise Duty Timings"
+                            onClick={() => handleOpenStaffSchedule(staff)}
+                          >
+                            <span>📅 Schedule</span>
+                          </button>
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '0.3rem 0.55rem', color: '#ef4444' }}
                             title="Remove Personnel"
                             onClick={() => handleDeleteStaff(staff._id, staff.name)}
                           >
@@ -496,6 +587,133 @@ const StaffManagement = () => {
                   type="button"
                   className="btn btn-secondary btn-full"
                   onClick={() => setShowAddModal(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Day-Wise Duty Shift & Timing Schedule Modal */}
+      {showScheduleModal && selectedStaffForSchedule && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(9, 13, 22, 0.85)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div style={{
+            background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)',
+            borderRadius: 'var(--border-radius-lg)', padding: '2.5rem',
+            maxWidth: '560px', width: '92%', maxHeight: '90vh', overflowY: 'auto'
+          }}>
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '0.4rem', color: '#fff' }}>
+              📅 Manage Day-Wise Duty Shift Schedule
+            </h3>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.25rem', fontSize: '0.88rem' }}>
+              Assign shift timings and weekly off days for <strong style={{ color: '#fff' }}>{selectedStaffForSchedule.name}</strong> ({selectedStaffForSchedule.department || 'Hospital Operations'}).
+            </p>
+
+            {/* Quick Templates */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Quick Shifts:</span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                onClick={() => applyStaffTemplate('general')}
+              >
+                General (09:00 - 17:00)
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                onClick={() => applyStaffTemplate('morning')}
+              >
+                Morning (08:00 - 16:00)
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                onClick={() => applyStaffTemplate('night')}
+              >
+                Night (20:00 - 08:00)
+              </button>
+            </div>
+
+            {/* 7 Days Schedule Grid */}
+            <form onSubmit={handleSaveStaffSchedule}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '1.5rem' }}>
+                {DAYS_OF_WEEK.map((day) => {
+                  const currentVal = staffDaySchedule[day] || 'Off';
+                  const isOff = currentVal === 'Off';
+
+                  return (
+                    <div
+                      key={day}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: '8px',
+                        padding: '0.6rem 0.8rem',
+                        gap: '0.75rem',
+                      }}
+                    >
+                      <div style={{ width: '100px', fontWeight: 700, fontSize: '0.85rem', color: isOff ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
+                        {day}
+                      </div>
+
+                      <div style={{ flex: 1 }}>
+                        <select
+                          className="form-select"
+                          style={{ margin: 0, padding: '0.35rem 0.6rem', fontSize: '0.82rem' }}
+                          value={currentVal}
+                          onChange={(e) => setStaffDaySchedule({ ...staffDaySchedule, [day]: e.target.value })}
+                        >
+                          <option value="09:00 - 17:00">General Shift (09:00 - 17:00)</option>
+                          <option value="08:00 - 16:00">Morning Shift (08:00 - 16:00)</option>
+                          <option value="14:00 - 22:00">Evening Shift (14:00 - 22:00)</option>
+                          <option value="20:00 - 08:00">Night Duty (20:00 - 08:00)</option>
+                          <option value="10:00 - 19:00">Full Operational (10:00 - 19:00)</option>
+                          <option value="Off">Weekly Off</option>
+                        </select>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setStaffDaySchedule({ ...staffDaySchedule, [day]: isOff ? '09:00 - 17:00' : 'Off' })}
+                        style={{
+                          padding: '0.3rem 0.6rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          backgroundColor: isOff ? 'rgba(239, 68, 68, 0.15)' : 'rgba(20, 184, 166, 0.15)',
+                          color: isOff ? 'var(--danger)' : 'var(--accent-teal)',
+                        }}
+                      >
+                        {isOff ? 'Off Day' : 'On Duty'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button type="submit" className="btn btn-teal btn-full">
+                  Save Day-Wise Shift Schedule
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-full"
+                  onClick={() => setShowScheduleModal(false)}
                 >
                   Cancel
                 </button>

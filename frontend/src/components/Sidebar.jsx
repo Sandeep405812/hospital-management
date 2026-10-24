@@ -179,16 +179,39 @@ const Sidebar = ({ isOpen, onClose }) => {
   ];
 
   const filteredLinks = links.filter((link) => {
-    if (user.role === 'superadmin' || user.role === 'admin') return true;
-    if (link.roles.includes(user.role)) return true;
+    // Clean, focused navigation for Super Admin and General Admin (no patient clutter)
+    if (user.role === 'superadmin' || user.role === 'admin') {
+      const allowedAdminRoutes = [
+        '/dashboard',
+        '/staff',
+        '/doctors',
+        '/patients',
+        '/appointments',
+        '/beds',
+        '/billing',
+        '/departments',
+        '/profile'
+      ];
+      return allowedAdminRoutes.includes(link.to);
+    }
+
     if (user.role.startsWith('admin_')) {
       if (link.to === '/dashboard' || link.to === '/profile') return true;
-      if (user.role === 'admin_doctors' && (link.to === '/doctors' || link.to === '/departments' || link.to === '/appointments')) return true;
-      if (user.role === 'admin_beds' && (link.to === '/beds' || link.to === '/surgery-schedule' || link.to === '/patients')) return true;
-      if (user.role === 'admin_helpdesk' && (link.to === '/appointments' || link.to === '/patients' || link.to === '/billing')) return true;
-      if (user.role === 'admin_staff' && (link.to === '/staff' || link.to === '/doctors' || link.to === '/departments')) return true;
+      if (user.role === 'admin_doctors') {
+        return ['/dashboard', '/doctors', '/departments', '/appointments', '/profile'].includes(link.to);
+      }
+      if (user.role === 'admin_beds') {
+        return ['/dashboard', '/beds', '/patients', '/profile'].includes(link.to);
+      }
+      if (user.role === 'admin_helpdesk') {
+        return ['/dashboard', '/appointments', '/patients', '/billing', '/profile'].includes(link.to);
+      }
+      if (user.role === 'admin_staff') {
+        return ['/dashboard', '/staff', '/doctors', '/departments', '/profile'].includes(link.to);
+      }
     }
-    return false;
+
+    return link.roles.includes(user.role);
   });
 
   const sidebarStyle = {

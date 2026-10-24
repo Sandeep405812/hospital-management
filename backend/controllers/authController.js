@@ -164,6 +164,80 @@ export const uploadAvatar = async (req, res) => {
   }
 };
 
+// @desc    Update current logged-in user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+export const updateProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const {
+      name,
+      phoneNumber,
+      gender,
+      department,
+      specialization,
+      consultationFee,
+      experience,
+      qualification,
+      dateOfBirth,
+      bloodType,
+      allergies,
+      medicalHistory,
+      emergencyContact,
+    } = req.body;
+
+    if (name) user.name = name;
+    if (phoneNumber !== undefined) user.phoneNumber = phoneNumber;
+    if (gender) user.gender = gender;
+    if (department && (user.role === 'admin' || user.role === 'superadmin' || user.role.startsWith('admin_') || user.role === 'receptionist')) {
+      user.department = department;
+    }
+
+    await user.save();
+
+    // If patient, also update Patient profile
+    if (user.role === 'patient') {
+      const patient = await Patient.findOne({ user: user._id });
+      if (patient) {
+        if (dateOfBirth) patient.dateOfBirth = dateOfBirth;
+        if (bloodType) patient.bloodType = bloodType;
+        if (allergies !== undefined) {
+          patient.allergies = Array.isArray(allergies)
+            ? allergies
+            : allergies.split(',').map((x) => x.trim()).filter(Boolean);
+        }
+        if (medicalHistory !== undefined) {
+          patient.medicalHistory = Array.isArray(medicalHistory)
+            ? medicalHistory
+            : medicalHistory.split(',').map((x) => x.trim()).filter(Boolean);
+        }
+        if (emergencyContact !== undefined) patient.emergencyContact = emergencyContact;
+        await patient.save();
+      }
+    }
+
+    // If doctor, also update Doctor profile
+    if (user.role === 'doctor') {
+      const doctor = await Doctor.findOne({ user: user._id });
+      if (doctor) {
+        if (specialization) doctor.specialization = specialization;
+        if (consultationFee !== undefined) doctor.consultationFee = consultationFee;
+        if (experience !== undefined) doctor.experience = experience;
+        if (qualification) doctor.qualification = qualification;
+        await doctor.save();
+      }
+    }
+
+    res.json({ message: 'Profile updated successfully', user });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // @desc    Verify account for password recovery
 // @route   POST /api/auth/forgot-password
 // @access  Public

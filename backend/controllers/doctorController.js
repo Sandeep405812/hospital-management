@@ -113,6 +113,7 @@ export const updateDoctor = async (req, res) => {
     doctor.experience = experience !== undefined ? experience : doctor.experience;
     doctor.qualification = qualification || doctor.qualification;
     doctor.schedule = schedule || doctor.schedule;
+    if (req.body.availability !== undefined) doctor.availability = req.body.availability;
 
     const updatedDoctor = await doctor.save();
     const populated = await Doctor.findById(updatedDoctor._id)

@@ -5,13 +5,25 @@ import Table from '../components/Table';
 import Modal from '../components/Modal';
 import { Plus, Trash2, Mail, Phone, Clock, Award } from 'lucide-react';
 
+const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const DEFAULT_DOCTOR_SCHEDULE = {
+  Monday: '09:00 - 17:00',
+  Tuesday: '09:00 - 17:00',
+  Wednesday: '09:00 - 17:00',
+  Thursday: '09:00 - 17:00',
+  Friday: '09:00 - 17:00',
+  Saturday: '09:00 - 13:00',
+  Sunday: 'Off',
+};
+
 const Doctors = () => {
   const { user } = useAuth();
+  const canManage = user?.role === 'superadmin' || user?.role === 'admin' || user?.role === 'admin_doctors';
   const [doctors, setDoctors] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Doctor Creation Modal State (Admin only)
+  // Doctor Creation Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [doctorForm, setDoctorForm] = useState({
     name: '',
@@ -26,12 +38,10 @@ const Doctors = () => {
     qualification: '',
   });
 
-  // Doctor Shift Roster Modal State (Admin only)
+  // Doctor Day-Wise Schedule Modal State
   const [isRosterModalOpen, setIsRosterModalOpen] = useState(false);
   const [selectedDoctorForRoster, setSelectedDoctorForRoster] = useState(null);
-  const [rosterForm, setRosterForm] = useState({
-    shift: 'Morning (09:00 - 14:00)'
-  });
+  const [daySchedule, setDaySchedule] = useState(DEFAULT_DOCTOR_SCHEDULE);
 
   const fetchDoctors = async () => {
     try {
@@ -47,7 +57,7 @@ const Doctors = () => {
       try {
         setLoading(true);
         await fetchDoctors();
-        if (user.role === 'admin') {
+        if (canManage) {
           const depts = await api.get('/departments');
           setDepartments(depts);
         }
@@ -86,23 +96,75 @@ const Doctors = () => {
 
   const handleOpenRoster = (doctor) => {
     setSelectedDoctorForRoster(doctor);
-    setRosterForm({
-      shift: doctor.schedule?.join(', ') || 'Morning (09:00 - 14:00)'
-    });
+    
+    // Parse existing availability or schedule
+    let initialSchedule = { ...DEFAULT_DOCTOR_SCHEDULE };
+    if (doctor.availability) {
+      DAYS_OF_WEEK.forEach((d) => {
+        if (doctor.availability[d]) {
+          const val = doctor.availability[d];
+          initialSchedule[d] = Array.isArray(val) ? (val.length ? `${val[0]} - ${val[val.length - 1]}` : 'Off') : val;
+        }
+      });
+    } else if (doctor.schedule && doctor.schedule.length) {
+      // Map general schedule
+      const general = doctor.schedule[0];
+      DAYS_OF_WEEK.forEach((d) => {
+        if (d !== 'Sunday') initialSchedule[d] = general;
+      });
+    }
+
+    setDaySchedule(initialSchedule);
     setIsRosterModalOpen(true);
   };
 
   const handleSaveRoster = async (e) => {
     e.preventDefault();
     try {
+      const formattedSchedule = Object.entries(daySchedule).map(([d, t]) => `${d}: ${t}`);
       await api.put(`/doctors/${selectedDoctorForRoster._id}`, {
-        schedule: [rosterForm.shift]
+        schedule: formattedSchedule,
+        availability: daySchedule,
       });
       setIsRosterModalOpen(false);
       fetchDoctors();
-      alert('Doctor shift roster updated successfully!');
+      alert('Doctor day-wise timetable updated successfully!');
     } catch (err) {
       alert(err.message || 'Failed to update roster');
+    }
+  };
+
+  const applyPresetTemplate = (type) => {
+    if (type === 'general') {
+      setDaySchedule({
+        Monday: '09:00 - 17:00',
+        Tuesday: '09:00 - 17:00',
+        Wednesday: '09:00 - 17:00',
+        Thursday: '09:00 - 17:00',
+        Friday: '09:00 - 17:00',
+        Saturday: '09:00 - 13:00',
+        Sunday: 'Off',
+      });
+    } else if (type === 'morning') {
+      setDaySchedule({
+        Monday: '08:00 - 14:00',
+        Tuesday: '08:00 - 14:00',
+        Wednesday: '08:00 - 14:00',
+        Thursday: '08:00 - 14:00',
+        Friday: '08:00 - 14:00',
+        Saturday: '08:00 - 12:00',
+        Sunday: 'Off',
+      });
+    } else if (type === 'evening') {
+      setDaySchedule({
+        Monday: '14:00 - 20:00',
+        Tuesday: '14:00 - 20:00',
+        Wednesday: '14:00 - 20:00',
+        Thursday: '14:00 - 20:00',
+        Friday: '14:00 - 20:00',
+        Saturday: '14:00 - 18:00',
+        Sunday: 'Off',
+      });
     }
   };
 
@@ -117,7 +179,7 @@ const Doctors = () => {
           <h1 className="page-title">Doctors</h1>
           <p className="page-subtitle">View and manage clinical medical staff</p>
         </div>
-        {user.role === 'admin' && (
+        {canManage && (
           <button className="btn btn-primary" onClick={() => setIsAddModalOpen(true)}>
             <Plus size={18} />
             <span>Add Doctor</span>
@@ -129,7 +191,7 @@ const Doctors = () => {
         {doctors.length === 0 ? (
           <p style={{ color: 'var(--text-secondary)', padding: '1rem 0' }}>No doctors registered yet.</p>
         ) : (
-          <Table headers={['Doctor Details', 'Department', 'Specialization', 'Consultation Fee', 'Schedule', 'Actions']}>
+          <Table headers={['Doctor Details', 'Department', 'Specialization', 'Consultation Fee', 'Weekly Timings', 'Actions']}>
             {doctors.map((doc) => (
               <tr key={doc._id}>
                 <td>
@@ -139,24 +201,34 @@ const Doctors = () => {
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Phone size={12} />{doc.user?.phoneNumber || 'N/A'}</span>
                   </div>
                 </td>
-                <td>{doc.department?.name || 'N/A'}</td>
+                <td>{doc.department?.name || 'General'}</td>
                 <td>{doc.specialization}</td>
                 <td style={{ fontWeight: 600 }}>₹{doc.consultationFee}</td>
                 <td>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <Clock size={12} /> {doc.schedule?.join(', ') || '09:00 - 17:00'}
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--accent-teal)', fontWeight: 600 }}>
+                      <Clock size={12} /> Day-Wise Schedule
+                    </div>
+                    {doc.schedule && doc.schedule.length > 0 ? (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-primary)' }}>
+                        {doc.schedule.slice(0, 2).join(' • ')} {doc.schedule.length > 2 ? `+${doc.schedule.length - 2} more` : ''}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Mon-Sat (09:00 - 17:00)</span>
+                    )}
                   </div>
                 </td>
                 <td>
-                  {user.role === 'admin' && (
-                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  {canManage && (
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                       <button
                         className="btn btn-secondary btn-sm"
-                        style={{ padding: '0.35rem' }}
+                        style={{ padding: '0.35rem 0.6rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
                         onClick={() => handleOpenRoster(doc)}
-                        title="Shift Roster"
+                        title="Edit Day-Wise Schedule"
                       >
-                        <Clock size={16} />
+                        <Clock size={14} />
+                        <span>Schedule</span>
                       </button>
                       <button
                         className="btn btn-danger btn-sm"
@@ -323,30 +395,106 @@ const Doctors = () => {
         </form>
       </Modal>
 
-      {/* Manage Shift Roster Modal (Admin-only) */}
-      <Modal isOpen={isRosterModalOpen} onClose={() => setIsRosterModalOpen(false)} title="Manage Doctor Shift Roster">
+      {/* Manage Day-Wise Timing & Schedule Modal */}
+      <Modal isOpen={isRosterModalOpen} onClose={() => setIsRosterModalOpen(false)} title="Manage Doctor Day-Wise Timing & OPD Schedule">
         {selectedDoctorForRoster && (
           <form onSubmit={handleSaveRoster}>
-            <div style={{ marginBottom: '1.25rem', fontSize: '0.92rem' }}>
-              Assign shift timetable duty roster for <strong>{selectedDoctorForRoster.user?.name}</strong>.
+            <div style={{ marginBottom: '1.25rem', fontSize: '0.92rem', color: 'var(--text-secondary)' }}>
+              Configure daily duty timings & consultation availability for <strong style={{ color: '#fff' }}>{selectedDoctorForRoster.user?.name}</strong>.
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Duty Shift Timings *</label>
-              <select
-                className="form-select"
-                value={rosterForm.shift}
-                onChange={(e) => setRosterForm({ ...rosterForm, shift: e.target.value })}
-                required
+            {/* Quick Templates */}
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Quick Templates:</span>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                onClick={() => applyPresetTemplate('general')}
               >
-                <option value="Morning (09:00 - 14:00)">Morning Duty (09:00 AM - 02:00 PM)</option>
-                <option value="Evening (14:00 - 19:00)">Evening Duty (02:00 PM - 07:00 PM)</option>
-                <option value="Night Duty (19:00 - 08:00)">Night Duty (07:00 PM - 08:00 AM)</option>
-              </select>
+                Standard (09:00 - 17:00)
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                onClick={() => applyPresetTemplate('morning')}
+              >
+                Morning (08:00 - 14:00)
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '0.72rem', padding: '0.2rem 0.5rem' }}
+                onClick={() => applyPresetTemplate('evening')}
+              >
+                Evening (14:00 - 20:00)
+              </button>
+            </div>
+
+            {/* 7 Days Schedule Grid */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', maxHeight: '50vh', overflowY: 'auto', paddingRight: '0.3rem' }}>
+              {DAYS_OF_WEEK.map((day) => {
+                const currentVal = daySchedule[day] || 'Off';
+                const isOff = currentVal === 'Off';
+
+                return (
+                  <div
+                    key={day}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid var(--glass-border)',
+                      borderRadius: '8px',
+                      padding: '0.6rem 0.8rem',
+                      gap: '0.75rem',
+                    }}
+                  >
+                    <div style={{ width: '100px', fontWeight: 700, fontSize: '0.85rem', color: isOff ? 'var(--text-secondary)' : 'var(--text-primary)' }}>
+                      {day}
+                    </div>
+
+                    <div style={{ flex: 1 }}>
+                      <select
+                        className="form-select"
+                        style={{ margin: 0, padding: '0.35rem 0.6rem', fontSize: '0.82rem' }}
+                        value={currentVal}
+                        onChange={(e) => setDaySchedule({ ...daySchedule, [day]: e.target.value })}
+                      >
+                        <option value="09:00 - 17:00">Full Day OPD (09:00 - 17:00)</option>
+                        <option value="09:00 - 13:00">Morning OPD (09:00 - 13:00)</option>
+                        <option value="14:00 - 18:00">Evening OPD (14:00 - 18:00)</option>
+                        <option value="10:00 - 14:00">Specialist OPD (10:00 - 14:00)</option>
+                        <option value="18:00 - 22:00">Night Consult (18:00 - 22:00)</option>
+                        <option value="Off">Weekly Off / Closed</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setDaySchedule({ ...daySchedule, [day]: isOff ? '09:00 - 17:00' : 'Off' })}
+                      style={{
+                        padding: '0.3rem 0.6rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        backgroundColor: isOff ? 'rgba(239, 68, 68, 0.15)' : 'rgba(20, 184, 166, 0.15)',
+                        color: isOff ? 'var(--danger)' : 'var(--accent-teal)',
+                      }}
+                    >
+                      {isOff ? 'Off Day' : 'Working'}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
 
             <button type="submit" className="btn btn-teal btn-full" style={{ marginTop: '1.5rem' }}>
-              Confirm Roster Allocation
+              Save Day-Wise Doctor Schedule
             </button>
           </form>
         )}

@@ -79,7 +79,7 @@ export const createStaffMember = async (req, res) => {
 // @access  Private (Super Admin / Admin)
 export const updateStaffMember = async (req, res) => {
   try {
-    const { name, role, department, status, phoneNumber } = req.body;
+    const { name, role, department, status, phoneNumber, schedule } = req.body;
     const staff = await User.findById(req.params.id);
 
     if (!staff) {
@@ -101,6 +101,7 @@ export const updateStaffMember = async (req, res) => {
     if (department) staff.department = department;
     if (status) staff.status = status;
     if (phoneNumber) staff.phoneNumber = phoneNumber;
+    if (schedule !== undefined) staff.schedule = schedule;
 
     await staff.save();
 

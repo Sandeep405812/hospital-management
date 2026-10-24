@@ -66,6 +66,19 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: '',
     },
+    schedule: {
+      type: Map,
+      of: String,
+      default: {
+        Monday: '09:00 - 17:00',
+        Tuesday: '09:00 - 17:00',
+        Wednesday: '09:00 - 17:00',
+        Thursday: '09:00 - 17:00',
+        Friday: '09:00 - 17:00',
+        Saturday: '09:00 - 13:00',
+        Sunday: 'Off',
+      },
+    },
   },
   {
     timestamps: true,
