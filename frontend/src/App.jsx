@@ -9,7 +9,6 @@ import gsap from 'gsap';
 // Components
 import Sidebar from './components/Sidebar';
 import Navbar from './components/Navbar';
-import WhatsappSimulator from './components/WhatsappSimulator';
 import HospitalAIAssistant from './components/HospitalAIAssistant';
 
 // Pages
@@ -291,7 +290,6 @@ const DashboardLayout = () => {
         />
       )}
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <WhatsappSimulator />
       <HospitalAIAssistant />
       <div className="main-content">
         <Navbar onMenuClick={() => setSidebarOpen(true)} />

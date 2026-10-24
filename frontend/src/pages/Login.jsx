@@ -6,8 +6,8 @@ import gsap from 'gsap';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState('');
-  const [activeRole, setActiveRole] = useState('patient');
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotMessage, setForgotMessage] = useState('');
@@ -22,22 +22,6 @@ const Login = () => {
       { y: 0, opacity: 1, duration: 0.5, ease: 'power2.out', stagger: 0.08, delay: 0.15 }
     );
   }, []);
-
-  const ROLE_ACCOUNTS = {
-    patient: { email: 'patient@hospital.com', pass: 'patientpassword123', label: 'Patient' },
-    doctor: { email: 'doctor@hospital.com', pass: 'doctorpassword123', label: 'Doctor' },
-    superadmin: { email: 'superadmin@hospital.com', pass: 'superadmin123', label: '👑 Super Admin' },
-    admin_beds: { email: 'bedadmin@hospital.com', pass: 'bedadmin123', label: '🛏️ Bed Admin' },
-    admin_doctors: { email: 'doctoradmin@hospital.com', pass: 'doctoradmin123', label: '🩺 Doc Admin' },
-    admin: { email: 'admin@hospital.com', pass: 'adminpassword123', label: 'Admin' },
-  };
-
-  useEffect(() => {
-    if (ROLE_ACCOUNTS[activeRole]) {
-      setEmail(ROLE_ACCOUNTS[activeRole].email);
-      setPassword(ROLE_ACCOUNTS[activeRole].pass);
-    }
-  }, [activeRole]);
 
   const { login, loading, error } = useAuth();
   const navigate = useNavigate();
@@ -67,34 +51,7 @@ const Login = () => {
           <div className="auth-logo">
             <span>🏥 AS HOSPITAL</span>
           </div>
-          <p className="auth-subtitle">Login to access your medical dashboard</p>
-        </div>
-
-        {/* Role tabs switcher */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.4rem', marginBottom: '1.25rem', backgroundColor: 'var(--bg-primary)', padding: '0.3rem', borderRadius: 'var(--border-radius-sm)' }}>
-          {Object.entries(ROLE_ACCOUNTS).map(([rKey, rVal]) => (
-            <button
-              key={rKey}
-              type="button"
-              onClick={() => setActiveRole(rKey)}
-              style={{
-                padding: '0.45rem 0.4rem',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                backgroundColor: activeRole === rKey ? 'var(--accent-teal)' : 'transparent',
-                color: activeRole === rKey ? '#fff' : 'var(--text-secondary)',
-                transition: 'var(--transition-smooth)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}
-            >
-              {rVal.label}
-            </button>
-          ))}
+          <p className="auth-subtitle">Sign in to access your hospital account</p>
         </div>
 
         {(formError || error) && (
@@ -120,10 +77,11 @@ const Login = () => {
             <input
               type="email"
               className="form-input"
-              placeholder="name@hospital.com"
+              placeholder="Enter your registered email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="username"
             />
           </div>
 
@@ -137,18 +95,41 @@ const Login = () => {
                 Forgot Password?
               </span>
             </div>
-            <input
-              type="password"
-              className="form-input"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                className="form-input"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                style={{ paddingRight: '2.5rem' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '0.75rem',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  padding: 0
+                }}
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? '👁️' : '🔒'}
+              </button>
+            </div>
           </div>
 
-          <button type="submit" className="btn btn-primary btn-full" disabled={loading}>
-            {loading ? 'Logging in...' : 'Sign In'}
+          <button type="submit" className="btn btn-primary btn-full" disabled={loading} style={{ marginTop: '1.25rem' }}>
+            {loading ? 'Authenticating...' : 'Sign In'}
           </button>
         </form>
 
