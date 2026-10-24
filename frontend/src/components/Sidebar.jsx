@@ -23,7 +23,8 @@ import {
   Package,
   ShoppingBag,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  Tv
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, onClose }) => {
@@ -84,6 +85,13 @@ const Sidebar = ({ isOpen, onClose }) => {
       roles: ['admin', 'doctor', 'patient', 'receptionist'],
       group: 'management',
       badge: pendingCount > 0 ? pendingCount : null
+    },
+    {
+      to: '/queue-tv',
+      label: 'Live OPD TV',
+      icon: <Tv size={20} />,
+      roles: ['superadmin', 'admin', 'admin_doctors', 'admin_helpdesk', 'doctor', 'receptionist'],
+      group: 'management'
     },
     {
       to: '/symptom-checker',
@@ -187,6 +195,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         '/doctors',
         '/patients',
         '/appointments',
+        '/queue-tv',
         '/beds',
         '/billing',
         '/departments',
@@ -198,13 +207,13 @@ const Sidebar = ({ isOpen, onClose }) => {
     if (user.role.startsWith('admin_')) {
       if (link.to === '/dashboard' || link.to === '/profile') return true;
       if (user.role === 'admin_doctors') {
-        return ['/dashboard', '/doctors', '/departments', '/appointments', '/profile'].includes(link.to);
+        return ['/dashboard', '/doctors', '/departments', '/appointments', '/queue-tv', '/profile'].includes(link.to);
       }
       if (user.role === 'admin_beds') {
         return ['/dashboard', '/beds', '/patients', '/profile'].includes(link.to);
       }
       if (user.role === 'admin_helpdesk') {
-        return ['/dashboard', '/appointments', '/patients', '/billing', '/profile'].includes(link.to);
+        return ['/dashboard', '/appointments', '/queue-tv', '/patients', '/billing', '/profile'].includes(link.to);
       }
       if (user.role === 'admin_staff') {
         return ['/dashboard', '/staff', '/doctors', '/departments', '/profile'].includes(link.to);

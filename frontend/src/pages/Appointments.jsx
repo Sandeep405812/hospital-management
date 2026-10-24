@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { api } from '../utils/api';
 import Table from '../components/Table';
 import Modal from '../components/Modal';
-import { Calendar, Plus, Check, X, FileText, Video, Mic } from 'lucide-react';
+import { Calendar, Plus, Check, X, FileText, Video, Mic, Tv } from 'lucide-react';
 import { sendMockWhatsapp } from '../utils/whatsapp';
 
 const Appointments = () => {
@@ -407,12 +407,23 @@ const Appointments = () => {
           <h1 className="page-title">Appointments</h1>
           <p className="page-subtitle">Schedule and view doctor consultations</p>
         </div>
-        {user.role === 'patient' && (
-          <button className="btn btn-primary" onClick={() => setIsBookModalOpen(true)}>
-            <Plus size={18} />
-            <span>Book Appointment</span>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-teal"
+            onClick={() => window.open('/queue-tv', '_blank')}
+            title="Open Live TV Token Board for Hospital Waiting Halls"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Tv size={17} />
+            <span>Live OPD TV Screen</span>
           </button>
-        )}
+          {user.role === 'patient' && (
+            <button className="btn btn-primary" onClick={() => setIsBookModalOpen(true)}>
+              <Plus size={18} />
+              <span>Book Appointment</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search & Filter Controls */}

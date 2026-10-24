@@ -32,6 +32,7 @@ import SurgerySchedule from './pages/SurgerySchedule';
 import WaitingRoom from './pages/WaitingRoom';
 import Inventory from './pages/Inventory';
 import StaffManagement from './pages/StaffManagement';
+import OpdQueueTv from './pages/OpdQueueTv';
 import { LanguageProvider } from './context/LanguageContext';
 
 // Protected Route Guard
@@ -346,6 +347,9 @@ function App() {
 
           {/* Protected routes */}
           <Route element={<ProtectedRoute />}>
+            {/* Standalone Full TV Display Route */}
+            <Route path="/queue-tv" element={<OpdQueueTv />} />
+
             <Route element={<DashboardLayout />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/appointments" element={<Appointments />} />

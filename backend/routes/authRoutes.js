@@ -10,7 +10,9 @@ router.post('/login', loginUser);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.get('/me', protect, getMe);
-router.put('/profile', protect, updateProfile);
+router.route('/profile')
+  .get(protect, getMe)
+  .put(protect, updateProfile);
 router.post('/avatar', protect, upload.single('file'), uploadAvatar);
 
 export default router;
