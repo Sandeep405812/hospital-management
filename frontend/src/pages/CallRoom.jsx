@@ -3,7 +3,25 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { api, BACKEND_URL } from '../utils/api';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, User, Settings, Send, Edit, Trash, FileText, X } from 'lucide-react';
+import {
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  PhoneOff,
+  User,
+  Settings,
+  Send,
+  Edit,
+  Trash,
+  FileText,
+  X,
+  Play,
+  Users,
+  CheckCircle,
+  Bell,
+  ArrowRight,
+} from 'lucide-react';
 import gsap from 'gsap';
 import { sendMockWhatsapp } from '../utils/whatsapp';
 
@@ -27,8 +45,13 @@ const CallRoom = () => {
   // Accepted call is true since Patient accepts from the global popup modal
   const [acceptedCall] = useState(true);
   
-  // Hosts are doctors or admins
-  const isHost = user?.role === 'doctor' || user?.role === 'admin';
+  // Hosts are doctors, admins, superadmins
+  const isHost = user?.role === 'doctor' || user?.role === 'admin' || user?.role === 'superadmin' || user?.role?.startsWith('admin_');
+  
+  // Live waiting queue for doctor in call room
+  const [queueList, setQueueList] = useState([]);
+  const [callingNext, setCallingNext] = useState(false);
+  const [showEndModal, setShowEndModal] = useState(false);
   
   // Stream states to solve conditional rendering ref-binding issues
   const [localStream, setLocalStream] = useState(null);
@@ -85,6 +108,51 @@ const CallRoom = () => {
     recognition.start();
   };
 
+  // Audio chime for Hospital OPD queue advancement
+  const playHospitalChime = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(659.25, ctx.currentTime + 0.18); // E5
+
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.7);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start(ctx.currentTime);
+      osc1.stop(ctx.currentTime + 0.2);
+      osc2.start(ctx.currentTime + 0.18);
+      osc2.stop(ctx.currentTime + 0.7);
+    } catch (e) {
+      console.log('Chime sound could not play:', e);
+    }
+  };
+
+  const fetchQueue = async (docId) => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const data = await api.get(`/appointments?doctorId=${docId}&startDate=${today}`);
+      const waiting = data.filter(a => {
+        const aDocId = a.doctor?._id || a.doctor;
+        return aDocId === docId && a._id !== id && ['approved', 'waiting', 'pending'].includes(a.status);
+      }).sort((a, b) => (a.serialNumber || 999) - (b.serialNumber || 999));
+      setQueueList(waiting);
+    } catch (err) {
+      console.error('Failed to load queue in call room', err);
+    }
+  };
+
   // Load appointment details
   useEffect(() => {
     const fetchAppointment = async () => {
@@ -97,6 +165,10 @@ const CallRoom = () => {
           return;
         }
         setAppointment(match);
+        const docId = match.doctor?._id || match.doctor;
+        if (docId) {
+          fetchQueue(docId);
+        }
       } catch (err) {
         console.error('Failed to load appointment details', err);
       } finally {
@@ -363,7 +435,65 @@ const CallRoom = () => {
     }
   };
 
+  // End current call and automatically admit next patient from waiting queue
+  const handleEndAndCallNext = async () => {
+    const docId = appointment?.doctor?._id || appointment?.doctor;
+    if (!docId) return;
+
+    setCallingNext(true);
+    try {
+      playHospitalChime();
+
+      // 1. Advance queue in backend (marks current as completed and next as ongoing)
+      const res = await api.post('/appointments/call-next', { doctorId: docId });
+
+      // 2. Broadcast via socket to waiting hall, TV screen and patient
+      if (socketRef.current) {
+        socketRef.current.emit('update-queue', { doctorId: docId });
+        if (res.currentOngoing) {
+          socketRef.current.emit('call-patient', {
+            roomId: res.currentOngoing._id,
+            patientUserId: res.currentOngoing.patient?.user?._id,
+            doctorName: user.name,
+          });
+        }
+      }
+
+      // 3. Cleanup current session media
+      cleanupMedia();
+
+      // 4. Transition to next room or exit
+      if (res.currentOngoing) {
+        sendMockWhatsapp(`📞 *[CARE HMS]* Video Consultation Cabin Ready!\nDear ${res.currentOngoing.patient?.user?.name || 'Patient'} (Token #${res.currentOngoing.serialNumber}), Dr. ${user.name} is waiting for you in the video consultation cabin.\nJoin now: http://localhost:5173/appointments/${res.currentOngoing._id}/call`);
+        navigate(`/appointments/${res.currentOngoing._id}/call`);
+      } else {
+        alert('All waiting patients for today have been attended!');
+        navigate('/appointments');
+      }
+    } catch (err) {
+      alert(err.message || 'Failed to advance to next patient');
+    } finally {
+      setCallingNext(false);
+      setShowEndModal(false);
+    }
+  };
+
   const handleEndCall = () => {
+    if (isHost && queueList.length > 0) {
+      setShowEndModal(true);
+    } else {
+      cleanupMedia();
+      setCallStatus('ended');
+      navigate('/appointments');
+    }
+  };
+
+  const handleForceExit = async () => {
+    try {
+      await api.put(`/appointments/${id}/status`, { status: 'completed' });
+    } catch (e) {
+      console.warn('Status update on exit:', e);
+    }
     cleanupMedia();
     setCallStatus('ended');
     navigate('/appointments');
@@ -546,33 +676,95 @@ const CallRoom = () => {
     <div style={pageContainerStyle}>
       <div style={headerStyle}>
         <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Telemedicine Consultation Room</h2>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-            Consultation with {user.role === 'patient' ? appointment.doctor?.user?.name : appointment.patient?.user?.name}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, margin: 0 }}>
+              OPD Telemedicine Consultation Room
+            </h2>
+            <span style={{
+              background: 'rgba(59, 130, 246, 0.2)',
+              color: 'var(--accent-blue)',
+              border: '1px solid rgba(59, 130, 246, 0.4)',
+              padding: '0.15rem 0.5rem',
+              borderRadius: '6px',
+              fontSize: '0.75rem',
+              fontWeight: 800
+            }}>
+              Token #{appointment.serialNumber || 1}
+            </span>
+            <span className={`badge badge-${callStatus}`} style={{ textTransform: 'uppercase', fontSize: '0.68rem' }}>
+              ● {callStatus}
+            </span>
+          </div>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0.2rem 0 0 0' }}>
+            Consultation with {user.role === 'patient' ? `Dr. ${appointment.doctor?.user?.name}` : `${appointment.patient?.user?.name} (ID: ${appointment.patient?.patientId || 'PID'})`}
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+
+        {/* Live Queue Next Patient Preview for Doctors / Hosts */}
+        {isHost && (
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.03)',
+            border: '1px solid var(--glass-border)',
+            borderRadius: '8px',
+            padding: '0.4rem 0.85rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            flexWrap: 'wrap'
+          }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>
+                Waiting in Queue ({queueList.length})
+              </div>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: queueList.length > 0 ? 'var(--accent-teal)' : '#4ade80' }}>
+                {queueList.length > 0 ? (
+                  `👉 Next: Token #${queueList[0].serialNumber} (${queueList[0].patient?.user?.name || 'Patient'})`
+                ) : (
+                  '🎉 Last patient for today'
+                )}
+              </div>
+            </div>
+            {queueList.length > 0 && (
+              <button
+                type="button"
+                className="btn btn-teal btn-sm"
+                disabled={callingNext}
+                onClick={handleEndAndCallNext}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  fontSize: '0.75rem',
+                  padding: '0.35rem 0.75rem',
+                  fontWeight: 700
+                }}
+              >
+                <Play size={13} fill="currentColor" />
+                <span>{callingNext ? 'Calling...' : 'Call Next ▶'}</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           {isHost && (
             <button 
               onClick={() => setShowPrescriptionDrawer(true)} 
               className="btn btn-teal btn-sm"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem' }}
             >
               <FileText size={14} />
-              <span>Issue Prescription</span>
+              <span>Prescription</span>
             </button>
           )}
           <button 
             onClick={() => setShowWhiteboard(!showWhiteboard)} 
             className={`btn ${showWhiteboard ? 'btn-teal' : 'btn-secondary'} btn-sm`}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem' }}
           >
             <Edit size={14} />
-            <span>{showWhiteboard ? 'Hide Board' : 'Show Whiteboard'}</span>
+            <span>{showWhiteboard ? 'Hide Board' : 'Whiteboard'}</span>
           </button>
-          <span className="badge badge-approved" style={{ textTransform: 'uppercase' }}>
-            {callStatus}
-          </span>
         </div>
       </div>
 
@@ -926,16 +1118,114 @@ const CallRoom = () => {
           {isCamOff ? <VideoOff size={24} /> : <Video size={24} />}
         </button>
 
-        {isHost && (
+        {/* Doctor Action: End Call & Call Next Patient Button */}
+        {isHost && queueList.length > 0 && (
           <button
-            onClick={handleEndCall}
-            className="control-btn danger"
-            title="End Telemedicine Call"
+            onClick={handleEndAndCallNext}
+            disabled={callingNext}
+            className="btn btn-teal"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.65rem 1.35rem',
+              borderRadius: '100px',
+              fontWeight: 800,
+              fontSize: '0.88rem',
+              boxShadow: '0 0 20px rgba(20, 184, 166, 0.45)',
+              background: 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)',
+              cursor: callingNext ? 'not-allowed' : 'pointer'
+            }}
+            title="Complete current consultation and admit next patient from waiting queue"
           >
-            <PhoneOff size={24} />
+            <Play size={18} fill="currentColor" />
+            <span>{callingNext ? 'Admitting Next Patient...' : `Admit Next: Token #${queueList[0]?.serialNumber} ▶`}</span>
           </button>
         )}
+
+        <button
+          onClick={handleEndCall}
+          className="control-btn danger"
+          title="End Telemedicine Call"
+          style={{ width: '50px', height: '50px', borderRadius: '50%' }}
+        >
+          <PhoneOff size={22} />
+        </button>
       </div>
+
+      {/* Completion & Next Patient Modal */}
+      {showEndModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(6px)',
+          zIndex: 999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+        }}>
+          <div style={{
+            background: 'var(--bg-secondary)', border: '1px solid var(--glass-border)',
+            borderRadius: 'var(--border-radius)', padding: '2rem', maxWidth: '460px', width: '100%',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.6)', textAlign: 'center'
+          }}>
+            <div style={{
+              width: '60px', height: '60px', borderRadius: '50%',
+              background: 'rgba(20, 184, 166, 0.15)', color: 'var(--accent-teal)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem'
+            }}>
+              <CheckCircle size={32} />
+            </div>
+
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fff', marginBottom: '0.5rem' }}>
+              Consultation Complete
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
+              Patient <strong>Token #{appointment.serialNumber} ({appointment.patient?.user?.name})</strong> consultation is completed.
+            </p>
+
+            {queueList.length > 0 ? (
+              <div style={{
+                background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.3)',
+                borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', textAlign: 'left'
+              }}>
+                <div style={{ fontSize: '0.72rem', color: 'var(--accent-blue)', fontWeight: 800, textTransform: 'uppercase', marginBottom: '0.25rem' }}>
+                  Next Patient Waiting in Line
+                </div>
+                <div style={{ fontSize: '1rem', fontWeight: 800, color: '#fff' }}>
+                  Token #{queueList[0].serialNumber} - {queueList[0].patient?.user?.name}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                  Symptoms: {queueList[0].symptoms} · Slot: {queueList[0].timeSlot}
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.85rem', color: '#4ade80', marginBottom: '1.5rem' }}>
+                🎉 No more patients are waiting in today's OPD queue!
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {queueList.length > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-teal btn-full"
+                  onClick={handleEndAndCallNext}
+                  disabled={callingNext}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', padding: '0.75rem', fontWeight: 800 }}
+                >
+                  <Play size={16} fill="currentColor" />
+                  <span>{callingNext ? 'Admitting Next Patient...' : `Admit Token #${queueList[0].serialNumber} & Start Call`}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn btn-secondary btn-full"
+                onClick={handleForceExit}
+                style={{ padding: '0.65rem' }}
+              >
+                Exit to OPD Appointments Desk
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .spin-animation {

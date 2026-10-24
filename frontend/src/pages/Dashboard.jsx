@@ -14,10 +14,18 @@ import {
   Layers,
   Activity,
   PlusCircle,
+  Play,
+  Tv,
+  Stethoscope,
+  Video,
+  CheckCircle,
+  ShieldCheck,
 } from 'lucide-react';
 
 const Dashboard = () => {
   const { user } = useAuth();
+  const isAdminRole = user?.role === 'admin' || user?.role === 'superadmin' || user?.role?.startsWith('admin_');
+
   const [stats, setStats] = useState({
     doctors: 0,
     patients: 0,
@@ -37,12 +45,17 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [socket, setSocket] = useState(null);
 
+  // Admin Central Doctor Station Monitors State
+  const [allDoctors, setAllDoctors] = useState([]);
+  const [allAppointments, setAllAppointments] = useState([]);
+  const [actionLoadingDocId, setActionLoadingDocId] = useState(null);
+
   // Donut hover segment tracking
   const [hoveredDonutSegment, setHoveredDonutSegment] = useState(null);
 
   // Initialize socket for live queue updates
   useEffect(() => {
-    if (user && user.role === 'doctor') {
+    if (user && (user.role === 'doctor' || isAdminRole)) {
       let socketUrl = BACKEND_URL;
       try {
         socketUrl = new URL(BACKEND_URL).origin;
@@ -50,21 +63,27 @@ const Dashboard = () => {
         console.warn("Invalid BACKEND_URL:", BACKEND_URL);
       }
       const newSocket = io(socketUrl);
+      newSocket.on('queue-updated', () => {
+        fetchDashboardData();
+      });
       setSocket(newSocket);
       return () => newSocket.disconnect();
     }
-  }, [user]);
+  }, [user, isAdminRole]);
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       
-      if (user.role === 'admin') {
+      if (isAdminRole) {
         const docs = await api.get('/doctors');
         const pats = await api.get('/patients');
         const apps = await api.get('/appointments');
         const depts = await api.get('/departments');
         const bills = await api.get('/billing');
+
+        setAllDoctors(docs);
+        setAllAppointments(apps);
 
         const totalEarnings = bills
           .filter((b) => b.status === 'paid')
@@ -78,7 +97,7 @@ const Dashboard = () => {
           departments: depts.length,
         });
 
-        setRecentAppointments(apps.slice(0, 5));
+        setRecentAppointments(apps.slice(0, 8));
         setAdminLedger(bills.slice(0, 5));
 
         // Top Doctors by Appointments calculation
@@ -149,6 +168,23 @@ const Dashboard = () => {
       fetchDashboardData();
     }
   }, [user]);
+
+  // Admin command action to remotely advance any doctor's queue
+  const handleAdminCallNextForDoctor = async (doctorId) => {
+    setActionLoadingDocId(doctorId);
+    try {
+      const res = await api.post('/appointments/call-next', { doctorId });
+      alert(res.message);
+      if (socket) {
+        socket.emit('update-queue', { doctorId });
+      }
+      await fetchDashboardData();
+    } catch (err) {
+      alert(err.message || 'Failed to advance doctor queue');
+    } finally {
+      setActionLoadingDocId(null);
+    }
+  };
 
   const handleCallNextPatient = async () => {
     if (!myDoctorProfile) return;
@@ -550,45 +586,243 @@ const Dashboard = () => {
       </div>
 
       {/* Admin Stat Grid */}
-      {user.role === 'admin' && (
-        <div className="dashboard-grid">
-          <StatCard
-            title="Total Doctors"
-            value={stats.doctors}
-            icon={<Activity size={24} />}
-            colorClass="blue"
-            change="4.2%"
-            isIncrease={true}
-            description="active this week"
-          />
-          <StatCard
-            title="Total Patients"
-            value={stats.patients}
-            icon={<Users size={24} />}
-            colorClass="teal"
-            change="12%"
-            isIncrease={true}
-            description="new patient logs"
-          />
-          <StatCard
-            title="Appointments"
-            value={stats.appointments}
-            icon={<Calendar size={24} />}
-            colorClass="warning"
-            change="8.5%"
-            isIncrease={true}
-            description="scheduled today"
-          />
-          <StatCard
-            title="Total Earnings"
-            value={`₹${stats.earnings.toLocaleString('en-IN')}`}
-            icon={<CreditCard size={24} />}
-            colorClass="danger"
-            change="15%"
-            isIncrease={true}
-            description="this billing cycle"
-          />
-        </div>
+      {isAdminRole && (
+        <>
+          <div className="dashboard-grid">
+            <StatCard
+              title="Total Doctors"
+              value={stats.doctors}
+              icon={<Activity size={24} />}
+              colorClass="blue"
+              change="4.2%"
+              isIncrease={true}
+              description="active on duty"
+            />
+            <StatCard
+              title="Total Patients"
+              value={stats.patients}
+              icon={<Users size={24} />}
+              colorClass="teal"
+              change="12%"
+              isIncrease={true}
+              description="registered patients"
+            />
+            <StatCard
+              title="Appointments"
+              value={stats.appointments}
+              icon={<Calendar size={24} />}
+              colorClass="warning"
+              change="8.5%"
+              isIncrease={true}
+              description="scheduled today"
+            />
+            <StatCard
+              title="Total Hospital Earnings"
+              value={`₹${stats.earnings.toLocaleString('en-IN')}`}
+              icon={<CreditCard size={24} />}
+              colorClass="danger"
+              change="15%"
+              isIncrease={true}
+              description="collected"
+            />
+          </div>
+
+          {/* ─── ADMIN CENTRAL HOSPITAL & DOCTOR OPD STATIONS LIVE MONITOR ─── */}
+          <div style={{
+            background: 'var(--glass-bg)',
+            border: '1px solid var(--glass-border)',
+            borderRadius: 'var(--border-radius-lg)',
+            padding: '1.75rem',
+            marginTop: '2rem',
+            marginBottom: '2rem',
+            boxShadow: 'var(--shadow-md)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '0.85rem' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--accent-teal)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                    CENTRAL HOSPITAL COMMAND & OPD QUEUE MONITOR
+                  </span>
+                  <span style={{ background: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', fontSize: '0.7rem', padding: '0.1rem 0.5rem', borderRadius: '100px', fontWeight: 700 }}>
+                    ● Real-time Sync
+                  </span>
+                </div>
+                <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#fff', margin: '0.25rem 0 0 0' }}>
+                  Doctor Consultation Stations & Field Control
+                </h2>
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-teal btn-sm"
+                  onClick={() => window.open('/queue-tv', '_blank')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                >
+                  <Tv size={15} />
+                  <span>Open OPD TV Monitor</span>
+                </button>
+                <Link to="/appointments" className="btn btn-secondary btn-sm">
+                  Full OPD Appointments ↗
+                </Link>
+              </div>
+            </div>
+
+            {/* Doctor Station Cards Grid */}
+            {allDoctors.length === 0 ? (
+              <p style={{ color: 'var(--text-secondary)' }}>Loading doctor consultation stations...</p>
+            ) : (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+                gap: '1.25rem'
+              }}>
+                {allDoctors.map((doc) => {
+                  const today = new Date().toISOString().split('T')[0];
+                  const docApps = allAppointments.filter((a) => {
+                    const aDocId = a.doctor?._id || a.doctor;
+                    const isThisDoc = aDocId === doc._id;
+                    const isToday = a.date && new Date(a.date).toISOString().split('T')[0] === today;
+                    return isThisDoc && isToday;
+                  });
+
+                  const ongoing = docApps.find((a) => a.status === 'ongoing');
+                  const waiting = docApps
+                    .filter((a) => ['approved', 'waiting', 'pending'].includes(a.status))
+                    .sort((a, b) => (a.serialNumber || 999) - (b.serialNumber || 999));
+                  const completed = docApps.filter((a) => a.status === 'completed');
+                  const isActionLoading = actionLoadingDocId === doc._id;
+
+                  return (
+                    <div key={doc._id} style={{
+                      background: ongoing ? 'rgba(30, 41, 59, 0.7)' : 'rgba(255, 255, 255, 0.02)',
+                      border: ongoing ? '1.5px solid rgba(20, 184, 166, 0.5)' : '1px solid var(--glass-border)',
+                      borderRadius: 'var(--border-radius)',
+                      padding: '1.25rem',
+                      boxShadow: ongoing ? '0 4px 20px rgba(20, 184, 166, 0.15)' : 'none',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}>
+                      <div>
+                        {/* Doctor header & Station Badge */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                          <div>
+                            <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#fff' }}>
+                              Dr. {doc.user?.name || 'Doctor'}
+                            </div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                              {doc.specialization} · Fee: ₹{doc.consultationFee}
+                            </div>
+                          </div>
+                          <span style={{
+                            background: ongoing ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.06)',
+                            color: ongoing ? '#4ade80' : 'var(--text-secondary)',
+                            fontSize: '0.72rem',
+                            fontWeight: 800,
+                            padding: '0.2rem 0.55rem',
+                            borderRadius: '4px',
+                            border: ongoing ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid var(--glass-border)'
+                          }}>
+                            {ongoing ? '🟢 IN CABIN' : '⚪ VACANT'}
+                          </span>
+                        </div>
+
+                        {/* Active Patient In Consultation Cabin */}
+                        <div style={{
+                          background: ongoing ? 'rgba(20, 184, 166, 0.08)' : 'rgba(0, 0, 0, 0.2)',
+                          border: '1px solid rgba(255, 255, 255, 0.05)',
+                          borderRadius: '6px',
+                          padding: '0.75rem',
+                          marginBottom: '0.75rem'
+                        }}>
+                          <div style={{ fontSize: '0.68rem', fontWeight: 800, color: ongoing ? 'var(--accent-teal)' : 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '0.2rem' }}>
+                            Current Cabin Patient
+                          </div>
+                          {ongoing ? (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                              <div>
+                                <span style={{ fontWeight: 800, color: '#fff', fontSize: '0.9rem' }}>
+                                  Token #{ongoing.serialNumber}: {ongoing.patient?.user?.name}
+                                </span>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                  Reason: {ongoing.symptoms || 'General Checkup'}
+                                </div>
+                              </div>
+                              <Link
+                                to={`/appointments/${ongoing._id}/call`}
+                                className="btn btn-teal btn-sm"
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.25rem 0.6rem', fontSize: '0.72rem' }}
+                                title="Enter live video consultation room"
+                              >
+                                <Video size={13} />
+                                <span>Enter Call</span>
+                              </Link>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                              No patient currently in cabin.
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Queue Stats Bar */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.85rem', background: 'rgba(255,255,255,0.02)', padding: '0.4rem 0.6rem', borderRadius: '4px' }}>
+                          <span>Waiting: <strong style={{ color: 'var(--accent-blue)' }}>{waiting.length}</strong></span>
+                          <span>Completed: <strong style={{ color: '#4ade80' }}>{completed.length}</strong></span>
+                          <span>Total: <strong style={{ color: '#fff' }}>{docApps.length}</strong></span>
+                        </div>
+
+                        {/* Next patient preview */}
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                          {waiting.length > 0 ? (
+                            <span>
+                              Next in line: <strong style={{ color: '#fff' }}>Token #{waiting[0].serialNumber} ({waiting[0].patient?.user?.name || 'Patient'})</strong>
+                            </span>
+                          ) : (
+                            <span style={{ color: '#4ade80' }}>✓ No waiting patients in queue</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Admin Action Bar */}
+                      <div style={{ display: 'flex', gap: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.75rem' }}>
+                        <button
+                          type="button"
+                          className="btn btn-teal btn-sm"
+                          disabled={isActionLoading || waiting.length === 0}
+                          onClick={() => handleAdminCallNextForDoctor(doc._id)}
+                          style={{
+                            flex: 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '0.35rem',
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            cursor: waiting.length === 0 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          <Play size={13} fill="currentColor" />
+                          <span>{isActionLoading ? 'Calling...' : 'Call Next'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => window.open(`/queue-tv`, '_blank')}
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem' }}
+                          title="Open TV screen for hospital"
+                        >
+                          <Tv size={13} />
+                          <span>TV</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* Doctor Stat Grid */}
