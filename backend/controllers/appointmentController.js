@@ -35,7 +35,12 @@ export const createAppointment = async (req, res) => {
     });
     const serialNumber = existingCount + 1;
 
-    // Create appointment directly in confirmed waiting queue
+    // Upfront Payment at appointment booking time (no post-appointment payment)
+    const finalPaymentStatus = 'Paid';
+    const finalPaymentMethod = paymentMethod || 'UPI';
+    const finalTransactionId = transactionId || `TXN${Date.now().toString().slice(-8)}`;
+
+    // Create appointment directly in confirmed waiting queue with Paid status
     const appointment = await Appointment.create({
       patient: patient._id,
       doctor: doctor._id,
@@ -46,13 +51,13 @@ export const createAppointment = async (req, res) => {
       fee: doctor.consultationFee,
       serialNumber,
       status: 'approved',
-      paymentStatus: paymentStatus || 'Pending',
-      paymentMethod: paymentMethod || 'Counter',
-      transactionId: transactionId || '',
+      paymentStatus: finalPaymentStatus,
+      paymentMethod: finalPaymentMethod,
+      transactionId: finalTransactionId,
     });
 
     if (appointment) {
-      // Automatically generate a billing record
+      // Automatically generate a paid billing record (paid upfront at appointment booking time)
       const taxRate = 0.18; // 18% GST/Tax
       const tax = parseFloat((appointment.fee * taxRate).toFixed(2));
       const total = appointment.fee + tax;
@@ -63,12 +68,12 @@ export const createAppointment = async (req, res) => {
         amount: appointment.fee,
         tax,
         total,
-        status: paymentStatus === 'Paid' ? 'paid' : 'unpaid',
-        paymentMethod: paymentMethod || 'Counter',
+        status: 'paid', // Always marked paid upfront at appointment time
+        paymentMethod: finalPaymentMethod,
       });
 
       res.status(201).json({
-        message: `Appointment booked successfully! Token #${serialNumber} generated in Doctor's OPD Queue.`,
+        message: `Appointment booked & Paid (₹${total})! Token #${serialNumber} generated in Doctor's OPD Queue.`,
         appointment,
       });
     } else {

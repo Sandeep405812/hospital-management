@@ -267,24 +267,29 @@ const Appointments = () => {
     }
   };
 
-  // Handle booking form submission
+  // Handle booking form submission with MANDATORY upfront payment
   const handleBookAppointment = async (e) => {
     e.preventDefault();
     if (!bookingForm.date || !bookingForm.timeSlot) {
       alert('Please select an OPD Session window and date from the timetable!');
       return;
     }
+
+    if (!bookingForm.isPaymentVerified) {
+      alert('⚠️ Payment is mandatory at the time of appointment booking! Please click "Pay & Verify" via UPI QR or Card above to generate your Token.');
+      return;
+    }
+
     try {
-      const isCounter = bookingForm.paymentMethod === 'Counter';
       const payload = {
         doctorId: bookingForm.doctorId,
         departmentId: bookingForm.departmentId,
         date: bookingForm.date,
         timeSlot: bookingForm.timeSlot,
         symptoms: bookingForm.symptoms,
-        paymentMethod: bookingForm.paymentMethod,
-        paymentStatus: isCounter ? 'Pay At Hospital Desk' : (bookingForm.isPaymentVerified ? 'Paid' : 'Pending'),
-        transactionId: bookingForm.transactionId || (bookingForm.isPaymentVerified ? `UPI${Date.now().toString().slice(-8)}` : ''),
+        paymentMethod: bookingForm.paymentMethod || 'UPI',
+        paymentStatus: 'Paid',
+        transactionId: bookingForm.transactionId || `UPI${Date.now().toString().slice(-8)}`,
       };
 
       const res = await api.post('/appointments', payload);
@@ -303,8 +308,8 @@ const Appointments = () => {
       await fetchAppointments();
       const bookedDoc = doctors.find(d => d._id === payload.doctorId);
       const docName = bookedDoc?.user?.name || 'Doctor';
-      sendMockWhatsapp(`🎟️ *[CARE HMS OPD]* Token Generated!\nDear Patient, your appointment with Dr. ${docName} on ${payload.date} (${payload.timeSlot}) is confirmed with Token #${res.appointment?.serialNumber || 1}.\nPayment: ${payload.paymentStatus} (${payload.paymentMethod}).\nTrack live queue on TV screen: http://localhost:5173/queue-tv`);
-      alert(res.message || 'Appointment booked successfully!');
+      sendMockWhatsapp(`🎟️ *[CARE HMS OPD]* Token Generated!\nDear Patient, your appointment with Dr. ${docName} on ${payload.date} (${payload.timeSlot}) is confirmed with Token #${res.appointment?.serialNumber || 1}.\nPayment: PAID upfront (₹${bookedDoc?.consultationFee || 500}) via ${payload.paymentMethod} (Ref: ${payload.transactionId}).\nTrack live queue on TV screen: http://localhost:5173/queue-tv`);
+      alert(res.message || 'Appointment booked & paid successfully!');
     } catch (error) {
       alert(error.message || 'Booking failed');
     }
@@ -1009,6 +1014,7 @@ const Appointments = () => {
               'Department',
               'Date',
               'Time Slot',
+              'Fee & Payment',
               'Symptoms',
               'Status',
               'Actions',
@@ -1077,6 +1083,28 @@ const Appointments = () => {
                 </td>
                 <td>
                   <span style={{ fontWeight: 600, color: 'var(--accent-blue)' }}>{app.timeSlot}</span>
+                </td>
+                <td>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    <span style={{ fontWeight: 700, color: '#fff', fontSize: '0.85rem' }}>
+                      ₹{app.fee || 500}
+                    </span>
+                    <span style={{
+                      background: 'rgba(34, 197, 94, 0.15)',
+                      color: '#4ade80',
+                      border: '1px solid rgba(34, 197, 94, 0.3)',
+                      padding: '0.1rem 0.45rem',
+                      borderRadius: '4px',
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.2rem',
+                      width: 'fit-content'
+                    }}>
+                      ✓ Paid ({app.paymentMethod || 'UPI'})
+                    </span>
+                  </div>
                 </td>
                 <td>{app.symptoms}</td>
                 <td>
@@ -1285,52 +1313,74 @@ const Appointments = () => {
             />
           </div>
 
-          {/* Integrated Payment Options at Booking Time */}
+          {/* Mandatory Upfront Payment at Appointment Time */}
           {(() => {
             const bookedDoc = doctors.find((d) => d._id === bookingForm.doctorId);
             const docFee = bookedDoc?.consultationFee || 500;
+            const tax = Math.round(docFee * 0.18);
+            const totalAmount = docFee + tax;
+            const projectedToken = appointments.filter(
+              (a) => (a.doctor?._id === bookingForm.doctorId || a.doctor === bookingForm.doctorId) &&
+                     a.date && new Date(a.date).toISOString().split('T')[0] === bookingForm.date
+            ).length + 1;
 
             return (
               <div style={{
-                background: 'rgba(15, 23, 42, 0.55)',
-                border: '1px solid var(--glass-border)',
+                background: 'rgba(15, 23, 42, 0.65)',
+                border: '1.5px solid var(--glass-border)',
                 borderRadius: '8px',
-                padding: '1rem',
+                padding: '1.15rem',
                 marginBottom: '1.25rem'
               }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.4rem' }}>
                   <label className="form-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                    <ShieldCheck size={16} color="var(--accent-teal)" />
-                    <span>Consultation Fee & Payment Options</span>
+                    <ShieldCheck size={17} color="var(--accent-teal)" />
+                    <span style={{ fontWeight: 800 }}>Mandatory Upfront Payment</span>
                   </label>
-                  <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--accent-teal)' }}>
-                    ₹{docFee}
-                  </span>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-teal)' }}>
+                      ₹{totalAmount}
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', display: 'block' }}>
+                      (Fee: ₹{docFee} + 18% GST: ₹{tax})
+                    </span>
+                  </div>
                 </div>
 
-                {/* Payment Method Selector Tabs */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '0.85rem' }}>
+                <div style={{
+                  background: 'rgba(20, 184, 166, 0.08)',
+                  border: '1px solid rgba(20, 184, 166, 0.25)',
+                  borderRadius: '6px',
+                  padding: '0.45rem 0.75rem',
+                  fontSize: '0.75rem',
+                  color: 'var(--accent-teal)',
+                  marginBottom: '0.85rem'
+                }}>
+                  🔒 <strong>Hospital Booking Policy:</strong> Payment must be completed right now to confirm booking and generate Token #{projectedToken}. No post-consultation payment or counter queues!
+                </div>
+
+                {/* Digital Payment Tabs */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.85rem' }}>
                   {[
-                    { id: 'UPI', label: 'Instant UPI QR', icon: <QrCode size={15} /> },
-                    { id: 'Card', label: 'Card / Net Banking', icon: <CreditCard size={15} /> },
-                    { id: 'Counter', label: 'Pay at Counter', icon: <Banknote size={15} /> },
+                    { id: 'UPI', label: 'Instant UPI QR Code', icon: <QrCode size={16} /> },
+                    { id: 'Card', label: 'Debit / Credit Card', icon: <CreditCard size={16} /> },
                   ].map((m) => (
                     <button
                       key={m.id}
                       type="button"
-                      onClick={() => setBookingForm({ ...bookingForm, paymentMethod: m.id, isPaymentVerified: m.id === 'Counter' ? false : bookingForm.isPaymentVerified })}
+                      onClick={() => setBookingForm({ ...bookingForm, paymentMethod: m.id })}
                       style={{
                         display: 'flex',
-                        flexDirection: 'column',
                         alignItems: 'center',
-                        gap: '0.3rem',
-                        padding: '0.5rem 0.25rem',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        padding: '0.55rem',
                         borderRadius: '6px',
                         border: bookingForm.paymentMethod === m.id ? '1.5px solid var(--accent-teal)' : '1px solid var(--glass-border)',
-                        background: bookingForm.paymentMethod === m.id ? 'rgba(20, 184, 166, 0.15)' : 'rgba(255,255,255,0.02)',
+                        background: bookingForm.paymentMethod === m.id ? 'rgba(20, 184, 166, 0.18)' : 'rgba(255,255,255,0.02)',
                         color: bookingForm.paymentMethod === m.id ? 'var(--accent-teal)' : 'var(--text-secondary)',
                         cursor: 'pointer',
-                        fontSize: '0.72rem',
+                        fontSize: '0.78rem',
                         fontWeight: 700
                       }}
                     >
@@ -1343,7 +1393,7 @@ const Appointments = () => {
                 {/* UPI Option Body */}
                 {bookingForm.paymentMethod === 'UPI' && (
                   <div style={{
-                    background: 'rgba(0,0,0,0.25)',
+                    background: 'rgba(0,0,0,0.3)',
                     padding: '0.85rem',
                     borderRadius: '6px',
                     border: '1px solid rgba(255,255,255,0.06)',
@@ -1384,29 +1434,29 @@ const Appointments = () => {
                         </svg>
                       </div>
                     </div>
-                    <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fff' }}>
-                      Scan & Pay ₹{docFee} with any UPI App
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#fff' }}>
+                      Scan & Pay ₹{totalAmount} with GPay, PhonePe, Paytm or BHIM
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
-                      UPI ID: <span style={{ color: 'var(--accent-teal)' }}>carehms.opd@icici</span> (GPay / PhonePe / Paytm / BHIM)
+                      UPI ID: <span style={{ color: 'var(--accent-teal)' }}>carehms.opd@icici</span>
                     </div>
 
-                    <div style={{ marginTop: '0.65rem' }}>
+                    <div style={{ marginTop: '0.75rem' }}>
                       {bookingForm.isPaymentVerified ? (
                         <div style={{
                           background: 'rgba(34, 197, 94, 0.15)',
                           color: '#4ade80',
                           border: '1px solid rgba(34, 197, 94, 0.3)',
-                          padding: '0.4rem',
+                          padding: '0.45rem',
                           borderRadius: '4px',
-                          fontSize: '0.78rem',
+                          fontSize: '0.8rem',
                           fontWeight: 700,
                           display: 'inline-flex',
                           alignItems: 'center',
                           gap: '0.35rem'
                         }}>
-                          <CheckCircle size={15} />
-                          <span>UPI Payment Verified: ₹{docFee} (Ref: {bookingForm.transactionId})</span>
+                          <CheckCircle size={16} />
+                          <span>Payment of ₹{totalAmount} Verified! (Ref: {bookingForm.transactionId})</span>
                         </div>
                       ) : (
                         <button
@@ -1421,9 +1471,9 @@ const Appointments = () => {
                               transactionId: mockTxn
                             });
                           }}
-                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.85rem' }}
+                          style={{ fontSize: '0.8rem', padding: '0.45rem 1rem', fontWeight: 700 }}
                         >
-                          ✓ Click to Simulate / Verify UPI Payment
+                          ✓ Click to Pay & Verify ₹{totalAmount} (UPI)
                         </button>
                       )}
                     </div>
@@ -1433,7 +1483,7 @@ const Appointments = () => {
                 {/* Card Option Body */}
                 {bookingForm.paymentMethod === 'Card' && (
                   <div style={{
-                    background: 'rgba(0,0,0,0.25)',
+                    background: 'rgba(0,0,0,0.3)',
                     padding: '0.85rem',
                     borderRadius: '6px',
                     border: '1px solid rgba(255,255,255,0.06)',
@@ -1441,12 +1491,12 @@ const Appointments = () => {
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                       <span>Credit / Debit Card or NetBanking</span>
-                      <span style={{ fontWeight: 700, color: 'var(--accent-teal)' }}>Amount: ₹{docFee}</span>
+                      <span style={{ fontWeight: 800, color: 'var(--accent-teal)' }}>Total: ₹{totalAmount}</span>
                     </div>
                     {bookingForm.isPaymentVerified ? (
-                      <div style={{ color: '#4ade80', fontWeight: 700, fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                        <CheckCircle size={14} />
-                        <span>Card Authorized (Ref: {bookingForm.transactionId})</span>
+                      <div style={{ color: '#4ade80', fontWeight: 700, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <CheckCircle size={15} />
+                        <span>Card Authorized! (Ref: {bookingForm.transactionId})</span>
                       </div>
                     ) : (
                       <button
@@ -1461,33 +1511,43 @@ const Appointments = () => {
                             transactionId: mockTxn
                           });
                         }}
+                        style={{ fontWeight: 700 }}
                       >
-                        💳 Pay ₹{docFee} via Demo Card Gateway
+                        💳 Pay ₹{totalAmount} via Card Checkout
                       </button>
                     )}
-                  </div>
-                )}
-
-                {/* Counter / Hospital Desk Option Body */}
-                {bookingForm.paymentMethod === 'Counter' && (
-                  <div style={{
-                    background: 'rgba(245, 158, 11, 0.08)',
-                    padding: '0.75rem 0.85rem',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(245, 158, 11, 0.25)',
-                    fontSize: '0.78rem',
-                    color: '#fcd34d'
-                  }}>
-                    ℹ️ <strong>Pay at Hospital Registration Counter:</strong> Your appointment token will be issued immediately. You can pay the consultation fee (₹{docFee}) on arrival before consultation.
                   </div>
                 )}
               </div>
             );
           })()}
 
-          <button type="submit" className="btn btn-primary btn-full" style={{ padding: '0.75rem', fontWeight: 800 }}>
-            Confirm Booking & Generate OPD Token
-          </button>
+          {/* Submit Button with Upfront Payment Lock */}
+          {(() => {
+            const bookedDoc = doctors.find((d) => d._id === bookingForm.doctorId);
+            const docFee = bookedDoc?.consultationFee || 500;
+            const totalAmount = docFee + Math.round(docFee * 0.18);
+
+            return (
+              <button
+                type="submit"
+                disabled={!bookingForm.isPaymentVerified}
+                className="btn btn-primary btn-full"
+                style={{
+                  padding: '0.85rem',
+                  fontWeight: 800,
+                  fontSize: '0.92rem',
+                  background: bookingForm.isPaymentVerified ? 'linear-gradient(135deg, #0d9488 0%, #14b8a6 100%)' : 'rgba(255,255,255,0.08)',
+                  cursor: bookingForm.isPaymentVerified ? 'pointer' : 'not-allowed',
+                  opacity: bookingForm.isPaymentVerified ? 1 : 0.6
+                }}
+              >
+                {bookingForm.isPaymentVerified
+                  ? `✅ Pay ₹${totalAmount} & Confirm OPD Token`
+                  : `⚠️ Pay ₹${totalAmount} Above to Confirm Appointment`}
+              </button>
+            );
+          })()}
         </form>
       </Modal>
 
